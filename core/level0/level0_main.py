@@ -200,6 +200,7 @@ def run(screen, clock, fonts, save_data=None):
     # Notifications
     notification_text = ""
     notification_timer = 0
+    notification_color = (0, 255, 0)
 
     running = True
     while running:
@@ -254,6 +255,9 @@ def run(screen, clock, fonts, save_data=None):
                 elif event.key == pygame.K_t:
                     hover_mode = "INLINE"
                     selected_slice = None
+                elif event.key == pygame.K_d:
+                    hover_mode = "DELETE"
+                    selected_slice = None
                 elif event.key == pygame.K_RETURN:
                     # Alternative placement trigger
                     if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND"):
@@ -292,31 +296,63 @@ def run(screen, clock, fonts, save_data=None):
                     elif hover_mode == "XLINE":
                         selected_slice = {"type": "XLINE", "index": gx}
                     elif hover_mode in ("ROAD", "SOLAR", "WIND"):
-                        # Map mode to block ID
-                        bid = 3
-                        cost = 0
+                        # Placement Logic
+                        target_bid = 3
+                        cost_buy = 0
                         if hover_mode == "ROAD" and road_id_list:
-                            bid = road_id_list[selected_road_idx]
+                            target_bid = road_id_list[selected_road_idx]
+                            cost_buy = 500
                         elif hover_mode == "SOLAR": 
-                            bid = 4
-                            cost = 10000
+                            target_bid = 4
+                            cost_buy = 1000
                         elif hover_mode == "WIND": 
-                            bid = 5
-                            cost = 100000
+                            target_bid = 5
+                            cost_buy = 10000
                         
-                        if balance >= cost:
-                            balance -= cost
-                            world_data[world.MAX_Z - 1][gy][gx] = bid
-                            # Update render_list in place to avoid full recalculation
-                            for i, (z, y, x, b_id) in enumerate(render_list):
-                                if z == world.MAX_Z - 1 and y == gy and x == gx:
-                                    render_list[i] = (z, y, x, bid)
-                                    break
-                            # Request map update
-                            cached_map_valid = False
-                        else:
-                            notification_text = "INSUFFICIENT FUNDS!"
-                            notification_timer = pygame.time.get_ticks() + 2000
+                        current_bid = world_data[world.MAX_Z - 1][gy][gx]
+                        
+                        if current_bid > 2: # Cell is occupied
+                            notification_text = "Press [D] to delete current element"
+                            notification_color = (255, 160, 0) # Orange
+                            notification_timer = pygame.time.get_ticks() + 2500
+                        else: # Cell is empty
+                            if balance >= cost_buy:
+                                balance -= cost_buy
+                                world_data[world.MAX_Z - 1][gy][gx] = target_bid
+                                for i, (z, y, x, b_id) in enumerate(render_list):
+                                    if z == world.MAX_Z - 1 and y == gy and x == gx:
+                                        render_list[i] = (z, y, x, target_bid)
+                                        break
+                                cached_map_valid = False
+                            else:
+                                notification_text = "INSUFFICIENT FUNDS!"
+                                notification_color = (255, 50, 50)
+                                notification_timer = pygame.time.get_ticks() + 2000
+                    
+                    elif hover_mode == "DELETE":
+                        current_bid = world_data[world.MAX_Z - 1][gy][gx]
+                        if current_bid > 2:
+                            # Removal Costs
+                            cost_remove = 0
+                            if current_bid >= 100 or current_bid == 3: cost_remove = 250 # Road
+                            elif current_bid == 4: cost_remove = 2500 # Solar
+                            elif current_bid == 5: cost_remove = 20000 # Wind
+                            
+                            if balance >= cost_remove:
+                                balance -= cost_remove
+                                world_data[world.MAX_Z - 1][gy][gx] = 1 # Back to grass
+                                for i, (z, y, x, b_id) in enumerate(render_list):
+                                    if z == world.MAX_Z - 1 and y == gy and x == gx:
+                                        render_list[i] = (z, y, x, 1)
+                                        break
+                                cached_map_valid = False
+                                notification_text = "ELEMENT REMOVED"
+                                notification_color = (200, 255, 100)
+                                notification_timer = pygame.time.get_ticks() + 1500
+                            else:
+                                notification_text = "NOT ENOUGH CASH TO DELETE!"
+                                notification_color = (255, 50, 50)
+                                notification_timer = pygame.time.get_ticks() + 2000
 
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0] < ISO_W and event.button in (4, 5):
@@ -448,7 +484,7 @@ def run(screen, clock, fonts, save_data=None):
 
         # Pass 2: Highlights (Not tinted, making them luminous at night)
         if is_hovering_map:
-            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND"):
+            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "DELETE"):
                 # Optimize: Direct drawing for single cell modes
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
                 cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
@@ -473,6 +509,9 @@ def run(screen, clock, fonts, save_data=None):
                 elif hover_mode == "WIND":
                     pygame.draw.polygon(iso_surf, (0, 255, 255), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (200, 255, 255), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "DELETE":
+                    pygame.draw.polygon(iso_surf, (255, 50, 50), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 200, 200), [t_f, r_f, b_f, l_f], 2)
                 else: # CELL
                     pygame.draw.polygon(iso_surf, (255, 50, 50), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 2)
@@ -711,12 +750,12 @@ def run(screen, clock, fonts, save_data=None):
 
         # Notifications (Upper Left, but centered-ish)
         if pygame.time.get_ticks() < notification_timer:
-            notif_surf = large_font.render(notification_text, True, (0, 255, 0))
+            notif_surf = large_font.render(notification_text, True, notification_color)
             notif_rect = notif_surf.get_rect(center=(ISO_W // 2, 50))
             # Background logic for better visibility
             bg_rect = notif_rect.inflate(40, 20)
-            pygame.draw.rect(screen, (30, 60, 30, 200), bg_rect, border_radius=10)
-            pygame.draw.rect(screen, (0, 255, 0), bg_rect, 2, border_radius=10)
+            pygame.draw.rect(screen, (30, 30, 30, 200), bg_rect, border_radius=10)
+            pygame.draw.rect(screen, notification_color, bg_rect, 2, border_radius=10)
             screen.blit(notif_surf, notif_rect)
 
         # Balance Overlay (Bottom Right of Isometric View)
