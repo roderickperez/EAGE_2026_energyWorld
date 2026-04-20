@@ -91,8 +91,9 @@ def run(screen, clock, fonts, save_data=None):
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
             scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
-            # Relaxed threshold for JPG artifacts
-            SPRITES[6] = clean_white_background(scaled_coal, threshold=25)
+            # Safe approach for industrial JPG assets:
+            scaled_coal.set_colorkey((255, 255, 255))
+            SPRITES[6] = scaled_coal
         except Exception as e:
             print(f"Warning: Coal plant asset load failed: {e}")
 
@@ -487,7 +488,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 80 # Upwards correction to avoid z-depth burying
+                if b_id == 6: offset_y = 120 # Towering profile for the plant
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
@@ -514,6 +515,7 @@ def run(screen, clock, fonts, save_data=None):
                 elif b_id == 3: poly_col = (120, 120, 120)
                 elif b_id == 4: poly_col = (255, 255, 0) # Solar Yellow
                 elif b_id == 5: poly_col = (0, 255, 255) # Wind Cyan
+                elif b_id == 6: poly_col = (0, 0, 0) # Coal Plant Black
                 
                 # Draw standard cube
                 pygame.draw.polygon(iso_surf, poly_col, [t, r, b, l])
