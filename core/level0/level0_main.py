@@ -274,10 +274,10 @@ def run(screen, clock, fonts):
         iso_surf = pygame.Surface((ISO_W, SCREEN_H))
         iso_surf.fill((30, 30, 30))
 
-        # North marker flipped to match flipped isometric orientation
-        pygame.draw.line(iso_surf, (255, 100, 100), (50, 70), (80, 100), 3)
-        pygame.draw.polygon(iso_surf, (255, 100, 100), [(80, 100), (70, 100), (80, 90)])
-        iso_surf.blit(large_font.render("N", True, (255, 100, 100)), (35, 50))
+        # North marker corrected to point North-West (Up-Left)
+        pygame.draw.line(iso_surf, (255, 100, 100), (50, 70), (25, 45), 3)
+        pygame.draw.polygon(iso_surf, (255, 100, 100), [(25, 45), (35, 45), (25, 55)])
+        iso_surf.blit(large_font.render("N", True, (255, 100, 100)), (15, 20))
 
         # Use selected slice as source-of-truth for line modes when available.
         active_hx, active_hy = gx_h, gy_h
@@ -480,7 +480,7 @@ def run(screen, clock, fonts):
             # td_tile already calculated at startup
             off_x = (PANEL_W - (world.GRID_SIZE * td_tile)) // 2
             off_y = (PANEL_H - (world.GRID_SIZE * td_tile)) // 2 + 10
-            bot_surf.blit(large_font.render("N ↑", True, (255, 100, 100)), (10, 30))
+            bot_surf.blit(large_font.render("N ↖", True, (255, 100, 100)), (10, 30))
 
             # Optimize Top-down map rendering with surface caching
             if not cached_map_valid:
