@@ -91,7 +91,8 @@ def run(screen, clock, fonts, save_data=None):
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
             scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
-            SPRITES[6] = clean_white_background(scaled_coal, threshold=40)
+            # Relaxed threshold for JPG artifacts
+            SPRITES[6] = clean_white_background(scaled_coal, threshold=25)
         except Exception as e:
             print(f"Warning: Coal plant asset load failed: {e}")
 
@@ -486,7 +487,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 40 # Solid grounding for the plant
+                if b_id == 6: offset_y = 80 # Upwards correction to avoid z-depth burying
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
@@ -640,13 +641,13 @@ def run(screen, clock, fonts, save_data=None):
                 "Irradiance": f"{solar_irradiance:.2f}"
             }
             controls = [
-                "[C] - Cell Selection",
+                "[I] - Info / Cell Selection",
                 "[T] - Inline Selection",
                 "[X] - Xline Selection",
                 "[R] - Road (Cycle variants)",
                 "[S] - Solar Mode",
                 "[W] - Wind Mode",
-                "[I] - Toggle Info Panel",
+                "[C] - Industrial Coal Plant",
                 "[A] - Toggle AI Chat",
                 "L Click - Select/Place",
                 "MMB - Pan Camera",
@@ -742,6 +743,7 @@ def run(screen, clock, fonts, save_data=None):
                 if hover_mode == "SOLAR": highlight_color = (255, 255, 0)
                 elif hover_mode == "WIND": highlight_color = (0, 255, 255)
                 elif hover_mode == "ROAD": highlight_color = (120, 120, 120)
+                elif hover_mode == "COAL": highlight_color = (0, 0, 0)
                 
                 # Draw hover on top of cached map
                 if gx_h < world.GRID_SIZE and gy_h < world.GRID_SIZE:
