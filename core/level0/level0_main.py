@@ -79,24 +79,10 @@ def run(screen, clock, fonts, save_data=None):
                 target_hf = 320
                 sc = target_hf / hf
                 scaled_frame = pygame.transform.smoothscale(raw_frame, (int(wf * sc), target_hf))
-                # Restore alpha cleaning now that visibility is verified
+                # Clean each frame surgically
                 SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
-            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation (Alpha Cleaned).")
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
-
-        # Load Coal Plant (ID 6)
-        path_coal = "assests/coalPlant_V1.png"
-        try:
-            raw_coal = pygame.image.load(path_coal).convert()
-            # Scale to standard building height? Let's use 160px for now
-            target_h_coal = 160
-            wf, hf = raw_coal.get_size()
-            sc = target_h_coal / hf
-            SPRITES[6] = clean_white_background(pygame.transform.smoothscale(raw_coal, (int(wf * sc), target_h_coal)), threshold=30)
-            print("Loaded Coal Plant asset.")
-        except Exception as e:
-            print(f"Warning: Coal Plant load failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
@@ -185,18 +171,13 @@ def run(screen, clock, fonts, save_data=None):
     def grid_to_iso_3d(x: int, y: int, z: int, tile_w: float, tile_h: float) -> tuple[float, float]:
         dx, dy = display_grid_coords(x, y)
         px = (dx - dy) * (tile_w / 2)
-        # Simplify: Use Z=9 as the reference height (0). 
-        # Z steps are relative to the top surface.
-        z_rel = z - (world.MAX_Z - 1) # 9 -> 0, 0 -> -9
-        py = (dx + dy) * (tile_h / 2) - (z_rel * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
+        py = (dx + dy) * (tile_h / 2) - (z * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
         return px, py
 
     def screen_to_iso_grid(sx: int, sy: int, tile_w: float, tile_h: float,
                            cam_x: float, cam_y: float) -> tuple[int, int]:
         iso_x = sx - ISO_W / 2 - cam_x
-        # For Top Surface (z=9, z_rel=0), py = (dx+dy)*16.
-        # So iso_y is directly proportional to dx+dy.
-        iso_y = sy - SCREEN_H / 2 - cam_y
+        iso_y = sy - SCREEN_H / 2 - cam_y + ((world.MAX_Z - 1) * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
         dx = (iso_y / (tile_h / 2) + iso_x / (tile_w / 2)) / 2
         dy = (iso_y / (tile_h / 2) - iso_x / (tile_w / 2)) / 2
         gx = world.GRID_SIZE - 1 - math.floor(dx)
@@ -226,9 +207,9 @@ def run(screen, clock, fonts, save_data=None):
     MIN_ZOOM = get_fit_zoom()
     zoom = MIN_ZOOM
     update_sprite_cache(zoom)
-    # Initial camera should center the visual top surface (now it's just 0-18 range centered at half)
-    top_y_start = grid_to_iso_3d(9, 9, 9, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
-    bot_y_start = grid_to_iso_3d(0, 0, 9, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    # Corrected target name for walrus used above
+    top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
     dragging = False
 
@@ -241,11 +222,6 @@ def run(screen, clock, fonts, save_data=None):
     while running:
         mx, my = pygame.mouse.get_pos()
         time_manager.update(1.0/60.0)
-        tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
-        
-        # Pre-calculate hover state for event handlers
-        gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
-        is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -269,12 +245,9 @@ def run(screen, clock, fonts, save_data=None):
                 if event.key == pygame.K_ESCAPE:
                     return "MENU"
                 elif event.key == pygame.K_c:
-                    hover_mode = "COAL"
-                    selected_slice = None
-                elif event.key == pygame.K_i:
                     hover_mode = "CELL"
                     selected_slice = None
-                elif event.key == pygame.K_F2:
+                elif event.key == pygame.K_i:
                     show_info_panel = not show_info_panel
                 elif event.key == pygame.K_a:
                     show_chat_panel = not show_chat_panel
@@ -303,14 +276,13 @@ def run(screen, clock, fonts, save_data=None):
                     selected_slice = None
                 elif event.key == pygame.K_RETURN:
                     # Alternative placement trigger
-                    if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND", "COAL"):
+                    if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND"):
                         # Re-use logic from mouse click
                         bid = 3
                         if hover_mode == "ROAD" and road_id_list:
                             bid = road_id_list[selected_road_idx]
                         elif hover_mode == "SOLAR": bid = 4
                         elif hover_mode == "WIND": bid = 5
-                        elif hover_mode == "COAL": bid = 6
                         
                         world_data[world.MAX_Z - 1][gy_h][gx_h] = bid
                         for i, (z, y, x, b_id) in enumerate(render_list):
@@ -352,9 +324,6 @@ def run(screen, clock, fonts, save_data=None):
                         elif hover_mode == "WIND": 
                             target_bid = 5
                             cost_buy = 10000
-                        elif hover_mode == "COAL":
-                            target_bid = 6
-                            cost_buy = 25000
                         
                         current_bid = world_data[world.MAX_Z - 1][gy][gx]
                         
@@ -384,7 +353,6 @@ def run(screen, clock, fonts, save_data=None):
                             if current_bid >= 100 or current_bid == 3: cost_remove = 250 # Road
                             elif current_bid == 4: cost_remove = 2500 # Solar
                             elif current_bid == 5: cost_remove = 20000 # Wind
-                            elif current_bid == 6: cost_remove = 50000 # Coal
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -415,6 +383,7 @@ def run(screen, clock, fonts, save_data=None):
                     cam_x, cam_y = px - ISO_W / 2 - wx, py - SCREEN_H / 2 - wy
                     update_sprite_cache(zoom)
 
+        tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
         screen.fill((20, 20, 20))
 
         # Environmental Data
@@ -445,6 +414,9 @@ def run(screen, clock, fonts, save_data=None):
         info_panel.energy_history.append(total_production)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
+
+        gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
+        is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
 
         # Panel 1: Isometric
         iso_surf = pygame.Surface((ISO_W, SCREEN_H))
@@ -495,19 +467,18 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: 
-                    offset_y = 0 # Base of turbine should be on the ground if sprite includes tower
-                if b_id == 6: 
-                    offset_y = 0 # Coal plant base on ground
+                if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
                 if isinstance(sprite, list):
-                    if not sprite: continue
+                    # Cycle through frames based on ticks (e.g. 100ms per frame)
+                    # We use unique seeds to make different turbines out of sync? 
+                    # For now just global cycle
                     f_idx = (pygame.time.get_ticks() // 80) % len(sprite)
                     draw_sprite = sprite[f_idx]
                 
-                rect = draw_sprite.get_rect(centerx=int(cx), bottom=int(cy - offset_y))
+                rect = draw_sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(draw_sprite, rect)
                 
                 # Apply highlight tint if applicable
@@ -541,7 +512,8 @@ def run(screen, clock, fonts, save_data=None):
             if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "DELETE"):
                 # Optimize: Direct drawing for single cell modes
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
-                # Highlighting top face directly (cx, cy is the top face center now)
+                cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
+                
                 t_f = (cx, cy - tile_h / 2)
                 r_f = (cx + tile_w / 2, cy)
                 b_f = (cx, cy + tile_h / 2)
