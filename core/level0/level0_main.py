@@ -185,14 +185,15 @@ def run(screen, clock, fonts, save_data=None):
     def grid_to_iso_3d(x: int, y: int, z: int, tile_w: float, tile_h: float) -> tuple[float, float]:
         dx, dy = display_grid_coords(x, y)
         px = (dx - dy) * (tile_w / 2)
-        py = (dx + dy) * (tile_h / 2) - (z * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
+        # Returns the center of the TOP FACE of the block at (x,y,z)
+        py = (dx + dy) * (tile_h / 2) - (z * BLOCK_Z_STEP * (tile_w / BASE_TILE_W)) - (tile_h / 2)
         return px, py
 
     def screen_to_iso_grid(sx: int, sy: int, tile_w: float, tile_h: float,
                            cam_x: float, cam_y: float) -> tuple[int, int]:
         iso_x = sx - ISO_W / 2 - cam_x
-        # Corrected offset for top-face intersection (Center-Z=9 is 288, Top-face is another 16px up)
-        # Using 304 * zoom ensures clicking the visual top face returns the correct gx, gy
+        # Corrected offset for top-face intersection
+        # Since grid_to_iso_3d now returns top-face center, z=9 is at -288*zoom - 16*zoom = -304*zoom
         iso_y = sy - SCREEN_H / 2 - cam_y + (304 * (tile_w / BASE_TILE_W))
         dx = (iso_y / (tile_h / 2) + iso_x / (tile_w / 2)) / 2
         dy = (iso_y / (tile_h / 2) - iso_x / (tile_w / 2)) / 2
@@ -224,8 +225,9 @@ def run(screen, clock, fonts, save_data=None):
     zoom = MIN_ZOOM
     update_sprite_cache(zoom)
     # Initial camera should center the visual top surface
-    top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] - (BASE_TILE_H * zoom / 2)
-    bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] + (BASE_TILE_H * zoom / 2)
+    # Top-back (9,9,9) center is -304*zoom. Bottom-front (0,0,0) center is (18*16)-16 = 272*zoom.
+    top_y_start = grid_to_iso_3d(9, 9, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    bot_y_start = grid_to_iso_3d(0, 0, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] + (BASE_TILE_H * zoom)
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
     dragging = False
 
@@ -504,7 +506,7 @@ def run(screen, clock, fonts, save_data=None):
                     f_idx = (pygame.time.get_ticks() // 80) % len(sprite)
                     draw_sprite = sprite[f_idx]
                 
-                rect = draw_sprite.get_rect(centerx=int(cx), bottom=int(cy - tile_h / 2 - offset_y))
+                rect = draw_sprite.get_rect(centerx=int(cx), bottom=int(cy - offset_y))
                 iso_surf.blit(draw_sprite, rect)
                 
                 # Apply highlight tint if applicable
@@ -538,13 +540,11 @@ def run(screen, clock, fonts, save_data=None):
             if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "DELETE"):
                 # Optimize: Direct drawing for single cell modes
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
-                cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
-                
-                # Shift highlight triangle to the top surface
-                t_f = (cx, cy - tile_h)
-                r_f = (cx + tile_w / 2, cy - tile_h / 2)
-                b_f = (cx, cy)
-                l_f = (cx - tile_w / 2, cy - tile_h / 2)
+                # Highlighting top face directly (cx, cy is the top face center now)
+                t_f = (cx, cy - tile_h / 2)
+                r_f = (cx + tile_w / 2, cy)
+                b_f = (cx, cy + tile_h / 2)
+                l_f = (cx - tile_w / 2, cy)
                 
                 if hover_mode == "ROAD":
                     rid = road_id_list[selected_road_idx] if road_id_list else 3
