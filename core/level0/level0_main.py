@@ -185,16 +185,18 @@ def run(screen, clock, fonts, save_data=None):
     def grid_to_iso_3d(x: int, y: int, z: int, tile_w: float, tile_h: float) -> tuple[float, float]:
         dx, dy = display_grid_coords(x, y)
         px = (dx - dy) * (tile_w / 2)
-        # Returns the center of the TOP FACE of the block at (x,y,z)
-        py = (dx + dy) * (tile_h / 2) - (z * BLOCK_Z_STEP * (tile_w / BASE_TILE_W)) - (tile_h / 2)
+        # Simplify: Use Z=9 as the reference height (0). 
+        # Z steps are relative to the top surface.
+        z_rel = z - (world.MAX_Z - 1) # 9 -> 0, 0 -> -9
+        py = (dx + dy) * (tile_h / 2) - (z_rel * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
         return px, py
 
     def screen_to_iso_grid(sx: int, sy: int, tile_w: float, tile_h: float,
                            cam_x: float, cam_y: float) -> tuple[int, int]:
         iso_x = sx - ISO_W / 2 - cam_x
-        # Corrected offset for top-face intersection
-        # Since grid_to_iso_3d now returns top-face center, z=9 is at -288*zoom - 16*zoom = -304*zoom
-        iso_y = sy - SCREEN_H / 2 - cam_y + (304 * (tile_w / BASE_TILE_W))
+        # For Top Surface (z=9, z_rel=0), py = (dx+dy)*16.
+        # So iso_y is directly proportional to dx+dy.
+        iso_y = sy - SCREEN_H / 2 - cam_y
         dx = (iso_y / (tile_h / 2) + iso_x / (tile_w / 2)) / 2
         dy = (iso_y / (tile_h / 2) - iso_x / (tile_w / 2)) / 2
         gx = world.GRID_SIZE - 1 - math.floor(dx)
@@ -224,10 +226,9 @@ def run(screen, clock, fonts, save_data=None):
     MIN_ZOOM = get_fit_zoom()
     zoom = MIN_ZOOM
     update_sprite_cache(zoom)
-    # Initial camera should center the visual top surface
-    # Top-back (9,9,9) center is -304*zoom. Bottom-front (0,0,0) center is (18*16)-16 = 272*zoom.
-    top_y_start = grid_to_iso_3d(9, 9, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
-    bot_y_start = grid_to_iso_3d(0, 0, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] + (BASE_TILE_H * zoom)
+    # Initial camera should center the visual top surface (now it's just 0-18 range centered at half)
+    top_y_start = grid_to_iso_3d(9, 9, 9, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    bot_y_start = grid_to_iso_3d(0, 0, 9, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
     dragging = False
 
