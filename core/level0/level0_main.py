@@ -170,6 +170,7 @@ def run(screen, clock, fonts, save_data=None):
     chat_panel = ui_panels.ChatPanel(*panel_rect, font)
     solar_dashboard = ui_panels.SolarDashboard(*panel_rect, font)
     wind_dashboard = ui_panels.WindDashboard(*panel_rect, font)
+    coal_dashboard = ui_panels.CoalDashboard(*panel_rect, font)
     show_info_panel = True
     show_chat_panel = False
 
@@ -342,12 +343,15 @@ def run(screen, clock, fonts, save_data=None):
                             cost_buy = 10000
                         elif hover_mode == "COAL":
                             target_bid = 6
-                            cost_buy = 50000
+                            cost_buy = 250000
                         
                         current_bid = world_data[world.MAX_Z - 1][gy][gx]
                         
                         if current_bid > 2: # Cell is occupied
-                            notification_text = "Press [D] to delete current element"
+                            names = {3: "Road", 4: "Solar Panel", 5: "Wind Turbine", 6: "Coal Plant"}
+                            # Also check road variants (100+)
+                            occ_name = names.get(current_bid, "Road" if current_bid >= 100 else "Element")
+                            notification_text = f"Cell [{gx},{gy}] currently has a {occ_name}"
                             notification_color = (255, 160, 0) # Orange
                             notification_timer = pygame.time.get_ticks() + 2500
                         else: # Cell is empty
@@ -372,7 +376,7 @@ def run(screen, clock, fonts, save_data=None):
                             if current_bid >= 100 or current_bid == 3: cost_remove = 250 # Road
                             elif current_bid == 4: cost_remove = 2500 # Solar
                             elif current_bid == 5: cost_remove = 20000 # Wind
-                            elif current_bid == 6: cost_remove = 15000 # Coal
+                            elif current_bid == 6: cost_remove = 500000 # Coal (Revised to 500,000)
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -428,10 +432,19 @@ def run(screen, clock, fonts, save_data=None):
                     prod = eff * 200.0 # Turbines are more powerful than panels
                     installed_turbines.append((x, y, prod, wind_speed))
                     total_production += prod
+                elif bid == 6: # Coal Plant
+                    total_production += 500.0 # Constant stable energy
         
         solar_dashboard.update(solar_irradiance, installed_panels)
         wind_dashboard.update(total_production if hover_mode == "WIND" else 0, installed_turbines)
-        info_panel.energy_history.append(total_production)
+        
+        # Coal Dashboard Statistics
+        num_coal = sum(1 for row in world_data[world.MAX_Z-1] for cell in row if cell == 6)
+        total_coal_prod = num_coal * 500.0
+        total_contam = num_coal * 100.0
+        coal_dashboard.update(total_coal_prod, total_contam)
+
+        info_panel.energy_history.append(total_production + total_coal_prod)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
 
@@ -634,13 +647,16 @@ def run(screen, clock, fonts, save_data=None):
             solar_dashboard.draw(screen)
         elif hover_mode == "WIND":
             wind_dashboard.draw(screen)
+        elif hover_mode == "COAL":
+            coal_dashboard.draw(screen)
         elif show_info_panel:
             g_info = {
                 "Grid": f"{world.GRID_SIZE}x{world.GRID_SIZE}x{world.MAX_Z}",
                 "Hover": f"({active_hx}, {active_hy})",
                 "Date": date_str,
                 "Time": time_str,
-                "Irradiance": f"{solar_irradiance:.2f}"
+                "Irradiance": f"{solar_irradiance:.2f}",
+                "Coal Production": f"{total_coal_prod:.1f} kW"
             }
             controls = [
                 "[I] - Info / Cell Selection",
@@ -721,6 +737,27 @@ def run(screen, clock, fonts, save_data=None):
                         ey = mc_y + math.sin(rad) * lv
                         pygame.draw.line(map_content_surf, (200, 255, 255), (mc_x, mc_y), (ex, ey), 1)
                         pygame.draw.circle(map_content_surf, (200, 255, 255), (int(ex), int(ey)), 2)
+                
+                bot_surf.blit(map_content_surf, (off_x, off_y))
+            elif hover_mode == "COAL":
+                bot_surf.blit(font.render("CONTAMINATION RADIUS MAP (Industrial Impact)", True, (255, 100, 100)), (10, 10))
+                map_content_surf.fill((40, 30, 25)) # Ash background
+                
+                # Render contamination glow around coal plants
+                for y in range(world.GRID_SIZE):
+                    for x in range(world.GRID_SIZE):
+                        if world_data[world.MAX_Z - 1][y][x] == 6:
+                            # 90-degree rotated map coordinates
+                            mc_x = y * td_tile + td_tile // 2
+                            mc_y = (world.GRID_SIZE - 1 - x) * td_tile + td_tile // 2
+                            
+                            # Multiple radius circles to simulate dispersion
+                            for r_size in [5, 4, 3, 2]:
+                                radius = r_size * td_tile * 1.5
+                                alpha = 100 // r_size
+                                circle_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                                pygame.draw.circle(circle_surf, (255, 50, 0, alpha), (radius, radius), radius)
+                                map_content_surf.blit(circle_surf, (mc_x - radius, mc_y - radius), special_flags=pygame.BLEND_RGBA_ADD)
                 
                 bot_surf.blit(map_content_surf, (off_x, off_y))
             elif not cached_map_valid:

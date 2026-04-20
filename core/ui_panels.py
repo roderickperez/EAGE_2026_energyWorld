@@ -217,3 +217,61 @@ class WindDashboard:
             
             if len(self.turbine_objs) > 8:
                 surface.blit(self.font.render(f"... and {len(self.turbine_objs)-8} more", True, (100, 150, 130)), (p2_rect.x + 10, inner_y))
+
+class CoalDashboard:
+    def __init__(self, x, y, w, h, font):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.font = font
+        self.production_history = []
+        self.contamination_history = []
+        self.max_hist = 150
+        self.bg_color = (25, 20, 20, 240) # Slightly more red/ash-tinted background
+
+    def update(self, total_prod, total_contam):
+        self.production_history.append(total_prod)
+        self.contamination_history.append(total_contam)
+        if len(self.production_history) > self.max_hist:
+            self.production_history.pop(0)
+        if len(self.contamination_history) > self.max_hist:
+            self.contamination_history.pop(0)
+
+    def draw(self, surface):
+        # Background
+        bg = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
+        bg.fill(self.bg_color)
+        surface.blit(bg, self.rect.topleft)
+        pygame.draw.rect(surface, (150, 150, 150), self.rect, 2)
+
+        # Labels
+        x, y = self.rect.x + 10, self.rect.y + 10
+        surface.blit(self.font.render("COAL ENERGY & CONTAMINATION DASHBOARD", True, (255, 100, 100)), (x, y))
+
+        # Plot 1: Total Coal Energy Production (Constant line per plant)
+        p1_rect = pygame.Rect(x, y + 30, self.rect.w - 20, (self.rect.h - 60) // 2 - 10)
+        pygame.draw.rect(surface, (30, 20, 20), p1_rect)
+        pygame.draw.rect(surface, (120, 80, 80), p1_rect, 1)
+        surface.blit(self.font.render("Historic Coal Energy Production (kW)", True, (220, 200, 200)), (p1_rect.x + 5, p1_rect.y + 5))
+        
+        if len(self.production_history) > 1:
+            points = []
+            max_p = max(self.production_history) if max(self.production_history) > 0 else 1
+            for i, val in enumerate(self.production_history):
+                px = p1_rect.x + (i / self.max_hist) * p1_rect.w
+                py = p1_rect.bottom - 5 - (val / max_p * (p1_rect.h - 20))
+                points.append((int(px), int(py)))
+            pygame.draw.lines(surface, (255, 100, 100), False, points, 2)
+
+        # Plot 2: Contamination Levels
+        p2_rect = pygame.Rect(x, p1_rect.bottom + 20, self.rect.w - 20, p1_rect.h)
+        pygame.draw.rect(surface, (30, 20, 20), p2_rect)
+        pygame.draw.rect(surface, (120, 80, 80), p2_rect, 1)
+        surface.blit(self.font.render("Total Regional Contamination (Index)", True, (220, 200, 200)), (p2_rect.x + 5, p2_rect.y + 5))
+
+        if len(self.contamination_history) > 1:
+            points = []
+            max_c = max(self.contamination_history) if max(self.contamination_history) > 0 else 1
+            for i, val in enumerate(self.contamination_history):
+                px = p2_rect.x + (i / self.max_hist) * p2_rect.w
+                py = p2_rect.bottom - 5 - (val / max_c * (p2_rect.h - 20))
+                points.append((int(px), int(py)))
+            pygame.draw.lines(surface, (180, 180, 180), False, points, 2) # Grey/Ash smoke line
