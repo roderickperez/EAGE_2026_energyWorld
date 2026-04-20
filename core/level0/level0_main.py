@@ -12,15 +12,24 @@ BASE_TILE_W = 64
 BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
-def clean_white_background(surf, threshold=60):
-    """Surgically cleans near-white pixels using fast mask thresholding."""
+def clean_white_background(surf, threshold=20):
+    """Surgically cleans ONLY the external background using connectivity."""
     surf = surf.copy()
-    # Identify pixels within threshold of pure white
-    mask = pygame.mask.from_threshold(surf, (255, 255, 255), (threshold, threshold, threshold))
-    # Generate a surface of pure white where those pixels are
-    white_bits = mask.to_surface(setcolor=(255, 255, 255), unsetcolor=(0, 0, 0, 0))
-    # Blit the pure white over the artifacts
-    surf.blit(white_bits, (0, 0))
+    w, h = surf.get_size()
+    # Mask of all pixels near white
+    near_white = pygame.mask.from_threshold(surf, (255, 255, 255), (threshold, threshold, threshold))
+    
+    # Isolate the background component (connected to the corners)
+    bg_mask = pygame.mask.Mask((w, h))
+    for corner in [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]:
+        if near_white.get_at(corner):
+            # Find the component connected to this corner
+            comp = near_white.connected_component(corner)
+            bg_mask.draw(comp, (0, 0))
+            
+    # Draw pure white only onto the identified background
+    white_bg = bg_mask.to_surface(setcolor=(255, 255, 255), unsetcolor=(0, 0, 0, 0))
+    surf.blit(white_bg, (0, 0))
     surf.set_colorkey((255, 255, 255))
     return surf
 
