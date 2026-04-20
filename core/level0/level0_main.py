@@ -91,8 +91,8 @@ def run(screen, clock, fonts, save_data=None):
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
             scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
-            # PNGs are usually cleaner, so surgical cleaning can be safer
-            SPRITES[6] = clean_white_background(scaled_coal, threshold=10)
+            # Removing cleaning as requested by user
+            SPRITES[6] = scaled_coal
             print(f"Coal plant asset processed (ID 6 - PNG). Size: {SPRITES[6].get_size()}")
         except Exception as e:
             print(f"Warning: Coal plant asset load failed: {e}")
