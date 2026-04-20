@@ -33,6 +33,7 @@ def run(screen, clock, fonts):
         except: pass
         try:
             SPRITES[4] = pygame.image.load("assests/solarPanel_V1_64x32.png").convert_alpha()
+            SPRITES[4].set_colorkey((255, 255, 255))
         except: pass
         try:
             SPRITES[5] = pygame.image.load("assests/windTurbine.png").convert_alpha()
@@ -318,6 +319,7 @@ def run(screen, clock, fonts):
                     pygame.draw.polygon(iso_surf, (100, 150, 100), [t, r, b, l])
                 
                 offset_y = 0
+                if b_id == 4: offset_y = 5 # Float above surface
                 
                 rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(sprite, rect)
