@@ -79,9 +79,9 @@ def run(screen, clock, fonts, save_data=None):
                 target_hf = 320
                 sc = target_hf / hf
                 scaled_frame = pygame.transform.smoothscale(raw_frame, (int(wf * sc), target_hf))
-                # Clean each frame surgically
-                SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
-            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation.")
+                # Skip cleaning for now to troubleshoot visibility - keep white background
+                SPRITES[5].append(scaled_frame)
+            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation (Original White).")
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
 
