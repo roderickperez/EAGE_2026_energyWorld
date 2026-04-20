@@ -32,27 +32,73 @@ class InfoPanel:
             surface.blit(self.font.render(ctrl, True, self.text_color), (x, y))
             y += 18
 
-        # Energy Production Plot
+        # Energy Production Plot (Stacked Area)
         plot_rect = pygame.Rect(self.rect.x + 10, self.rect.bottom - 110, self.rect.w - 20, 100)
         pygame.draw.rect(surface, (20, 20, 30), plot_rect)
         pygame.draw.rect(surface, (100, 100, 100), plot_rect, 1)
-        surface.blit(self.font.render("Total Energy Production", True, (255, 255, 100)), (plot_rect.x + 5, plot_rect.y + 2))
+        surface.blit(self.font.render("Production Stack & Demand", True, (255, 255, 100)), (plot_rect.x + 5, plot_rect.y + 2))
         
         if self.energy_history:
-            points = []
-            max_val = max(self.energy_history) if max(self.energy_history) > 0 else 1
-            for i, val in enumerate(self.energy_history):
-                # Map to plot space
-                px = plot_rect.x + (i / self.max_hist) * plot_rect.w
-                py = plot_rect.bottom - 5 - (val / max_val * (plot_rect.h - 20))
-                points.append((int(px), int(py)))
+            # Assume each entry is (solar, wind, coal)
+            # Find max total for scaling
+            max_val = 0
+            for entry in self.energy_history:
+                if isinstance(entry, (tuple, list)):
+                    max_val = max(max_val, sum(entry))
+                else:
+                    max_val = max(max_val, entry)
+            max_val = max(max_val, 1000) # Minimum scale for visibility
             
-            if len(points) > 1:
-                pygame.draw.lines(surface, (0, 255, 200), False, points, 2)
-            
-            # Show current value
-            cur_val = self.energy_history[-1]
-            surface.blit(self.font.render(f"Current: {cur_val:.1f} kW", True, (0, 255, 200)), (plot_rect.right - 120, plot_rect.y + 2))
+            # Draw Demand Line (Dashed)
+            demand_y = plot_rect.bottom - 5 - (800 / max_val * (plot_rect.h - 20)) # Fixed demand at 800 for now
+            if plot_rect.y < demand_y < plot_rect.bottom:
+                for dx in range(plot_rect.x, plot_rect.right, 10):
+                    pygame.draw.line(surface, (255, 50, 50), (dx, int(demand_y)), (dx + 5, int(demand_y)), 1)
+                surface.blit(self.font.render("MIN DEMAND", True, (255, 50, 50)), (plot_rect.x + 5, int(demand_y) - 15))
+
+            # Stacked Area logic
+            num_points = len(self.energy_history)
+            if num_points > 1:
+                # Layers: Coal (Base), Wind, Solar (Top)
+                layers = [
+                    ((255, 100, 100, 150), 2), # Coal: Index 2
+                    ((0, 255, 200, 180), 1),   # Wind: Index 1
+                    ((255, 255, 0, 200), 0)    # Solar: Index 0
+                ]
+                
+                for color_alpha, idx in layers:
+                    poly_points = []
+                    # Add bottom points for the area fill
+                    for i, entry in enumerate(self.energy_history):
+                        px = plot_rect.x + (i / self.max_hist) * plot_rect.w
+                        
+                        # Sum values up to this layer
+                        if isinstance(entry, (tuple, list)):
+                            val_sum = sum(entry[idx:])
+                        else:
+                            # Fallback if history is old single-value format
+                            val_sum = entry if idx == 2 else 0
+                        
+                        py = plot_rect.bottom - 5 - (val_sum / max_val * (plot_rect.h - 20))
+                        poly_points.append((int(px), int(py)))
+                    
+                    # Add bottom anchor points to close the polygon
+                    last_px = plot_rect.x + ((num_points - 1) / self.max_hist) * plot_rect.w
+                    first_px = plot_rect.x
+                    poly_points.append((int(last_px), plot_rect.bottom - 5))
+                    poly_points.append((int(first_px), plot_rect.bottom - 5))
+                    
+                    fill_surf = pygame.Surface((plot_rect.w, plot_rect.h), pygame.SRCALPHA)
+                    # Translate poly_points to surf local coords
+                    local_poly = [(p[0] - plot_rect.x, p[1] - plot_rect.y) for p in poly_points]
+                    pygame.draw.polygon(fill_surf, color_alpha, local_poly)
+                    surface.blit(fill_surf, plot_rect.topleft)
+
+            # Show total current value
+            cur_entry = self.energy_history[-1]
+            cur_total = sum(cur_entry) if isinstance(cur_entry, (tuple, list)) else cur_entry
+            color = (0, 255, 200) if cur_total > 800 else (255, 50, 50)
+            surface.blit(self.font.render(f"Total: {cur_total:.1f} kW", True, color), (plot_rect.right - 120, plot_rect.y + 2))
 
 class ChatPanel:
     def __init__(self, x, y, w, h, font):

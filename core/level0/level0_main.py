@@ -444,7 +444,12 @@ def run(screen, clock, fonts, save_data=None):
         total_contam = num_coal * 100.0
         coal_dashboard.update(total_coal_prod, total_contam)
 
-        info_panel.energy_history.append(total_production + total_coal_prod)
+        # Discretized production forStacked Area Chart: (Solar, Wind, Coal)
+        total_wind_prod = sum(t[2] for t in installed_turbines)
+        total_solar_prod = sum(p[2] for p in installed_panels)
+        production_tuple = (total_solar_prod, total_wind_prod, total_coal_prod)
+        
+        info_panel.energy_history.append(production_tuple)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
 
