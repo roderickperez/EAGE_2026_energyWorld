@@ -478,7 +478,7 @@ def run(screen, clock, fonts, save_data=None):
                     f_idx = (pygame.time.get_ticks() // 80) % len(sprite)
                     draw_sprite = sprite[f_idx]
                 
-                rect = draw_sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
+                rect = draw_sprite.get_rect(centerx=int(cx), bottom=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(draw_sprite, rect)
                 
                 # Apply highlight tint if applicable
