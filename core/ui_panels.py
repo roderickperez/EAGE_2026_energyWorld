@@ -8,7 +8,11 @@ class InfoPanel:
         self.header_color = (255, 200, 100)
         self.text_color = (200, 200, 220)
         self.energy_history = []
-        self.max_hist = 150
+        self.max_hist = 200
+        self.demands = [800, 1500, 2500]
+
+    def update_demands(self, res, bus, ind):
+        self.demands = [res, bus, ind]
 
     def draw(self, surface, grid_info, controls):
         # Draw semi-transparent background
@@ -50,13 +54,13 @@ class InfoPanel:
             max_val = max(max_val, 1000) # Minimum scale for visibility
             
             # Draw Demand Lines (Dashed)
-            demands = [
-                (800, (255, 50, 50), "RESIDENTIAL MIN NEED"),
-                (1500, (255, 150, 0), "BUSINESS REQUIREMENTS"),
-                (2500, (200, 100, 255), "INDUSTRIAL MIN REQUIREMENT")
+            demands_info = [
+                (self.demands[0], (255, 50, 50), "RESIDENTIAL MIN NEED"),
+                (self.demands[1], (255, 150, 0), "BUSINESS REQUIREMENTS"),
+                (self.demands[2], (200, 100, 255), "INDUSTRIAL MIN REQUIREMENT")
             ]
             
-            for threshold, color, label in demands:
+            for threshold, color, label in demands_info:
                 demand_y = plot_rect.bottom - 5 - (threshold / max_val * (plot_rect.h - 20))
                 if plot_rect.y < demand_y < plot_rect.bottom:
                     for dx in range(plot_rect.x, plot_rect.right, 10):
@@ -104,8 +108,9 @@ class InfoPanel:
             # Show total current value
             cur_entry = self.energy_history[-1]
             cur_total = sum(cur_entry) if isinstance(cur_entry, (tuple, list)) else cur_entry
-            color = (0, 255, 200) if cur_total > 800 else (255, 50, 50)
-            surface.blit(self.font.render(f"Total: {cur_total:.1f} kW", True, color), (plot_rect.right - 120, plot_rect.y + 2))
+            # Green if meeting residential needs, otherwise Red
+            color = (0, 255, 200) if cur_total >= self.demands[0] else (255, 50, 50)
+            surface.blit(self.font.render(f"Total Prod: {cur_total:.1f} kW", True, color), (plot_rect.right - 140, plot_rect.y + 2))
 
 class ChatPanel:
     def __init__(self, x, y, w, h, font):

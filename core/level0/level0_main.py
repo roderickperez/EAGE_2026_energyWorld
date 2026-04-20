@@ -463,17 +463,26 @@ def run(screen, clock, fonts, save_data=None):
         solar_dashboard.update(solar_irradiance, installed_panels)
         wind_dashboard.update(total_production if hover_mode == "WIND" else 0, installed_turbines)
         
-        # Coal Dashboard Statistics
-        num_coal = sum(1 for row in world_data[world.MAX_Z-1] for cell in row if cell == 6)
-        total_coal_prod = num_coal * 500.0
-        total_contam = num_coal * 100.0
-        coal_dashboard.update(total_coal_prod, total_contam)
+        # Calculate Dynamic Demand and Tax Income
+        num_houses = sum(row.count(10) for row in world_data[world.MAX_Z-1])
+        num_offices = sum(row.count(11) for row in world_data[world.MAX_Z-1])
+        
+        # Demand curves: Base + Population scaling
+        res_need = 800 + num_houses * 50
+        bus_need = 1500 + num_offices * 150
+        ind_need = 2500 + (num_houses + num_offices) * 50
+        
+        # Tax Revenue
+        dt = 0.016 # Assumed 60fps delta
+        tax_tick = (num_houses * 5) + (num_offices * 25)
+        balance += tax_tick * dt * 10 # Multiplied for noticeable growth
 
         # Discretized production forStacked Area Chart: (Solar, Wind, Coal)
         total_wind_prod = sum(t[2] for t in installed_turbines)
         total_solar_prod = sum(p[2] for p in installed_panels)
         production_tuple = (total_solar_prod, total_wind_prod, total_coal_prod)
         
+        info_panel.update_demands(res_need, bus_need, ind_need)
         info_panel.energy_history.append(production_tuple)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
@@ -493,9 +502,9 @@ def run(screen, clock, fonts, save_data=None):
                                 if n_bid == 3 or n_bid >= 100: has_road = True; break
                         
                         if has_road:
-                            if bid == 7 and tot_e >= 800: world_data[world.MAX_Z-1][y][x] = 10
-                            elif bid == 9 and tot_e >= 1500: world_data[world.MAX_Z-1][y][x] = 11
-                            elif bid == 8 and tot_e >= 2500: world_data[world.MAX_Z-1][y][x] = 11
+                            if bid == 7 and tot_e >= res_need: world_data[world.MAX_Z-1][y][x] = 10
+                            elif bid == 9 and tot_e >= bus_need: world_data[world.MAX_Z-1][y][x] = 11
+                            elif bid == 8 and tot_e >= ind_need: world_data[world.MAX_Z-1][y][x] = 11
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
         is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
