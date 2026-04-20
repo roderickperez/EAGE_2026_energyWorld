@@ -85,16 +85,15 @@ def run(screen, clock, fonts, save_data=None):
             print(f"Warning: windTurbine animation load failed: {e}")
             
         try:
-            # Load Coal Plant (ID 6)
-            raw_coal = pygame.image.load("assests/coalPlant_V2.jpg").convert()
+            # Load Coal Plant (ID 6) - Swapped to PNG
+            raw_coal = pygame.image.load("assests/coalPlant_V2.png").convert_alpha()
             wc, hc = raw_coal.get_size()
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
-            scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc)).convert_alpha()
-            # User suggested removing background cleaning if it fails
-            scaled_coal.set_colorkey((255, 255, 255))
-            SPRITES[6] = scaled_coal
-            print(f"Coal plant asset processed (ID 6). Size: {SPRITES[6].get_size()}")
+            scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
+            # PNGs are usually cleaner, so surgical cleaning can be safer
+            SPRITES[6] = clean_white_background(scaled_coal, threshold=10)
+            print(f"Coal plant asset processed (ID 6 - PNG). Size: {SPRITES[6].get_size()}")
         except Exception as e:
             print(f"Warning: Coal plant asset load failed: {e}")
 
@@ -489,7 +488,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 70 # Lowered for better grounding
+                if b_id == 6: offset_y = 55 # Lowered for better grounding
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
