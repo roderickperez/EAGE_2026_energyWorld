@@ -7,8 +7,15 @@ class InfoPanel:
         self.bg_color = (40, 40, 50, 230) # Semi-transparent dark
         self.header_color = (255, 200, 100)
         self.text_color = (200, 200, 200)
+        self.energy_history = []
+        self.max_hist = 150
 
-    def draw(self, surface, grid_info, controls):
+    def draw(self, surface, grid_info, controls, total_energy=0):
+        if total_energy is not None:
+            self.energy_history.append(total_energy)
+            if len(self.energy_history) > self.max_hist:
+                self.energy_history.pop(0)
+
         # Draw semi-transparent background
         bg_surf = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
         bg_surf.fill(self.bg_color)
@@ -26,9 +33,24 @@ class InfoPanel:
         y += 20
         surface.blit(self.font.render("Controls:", True, self.header_color), (x, y))
         y += 25
-        for ctrl in controls:
+        for ctrl in controls[:8]: # Limit display to make space for plot
             surface.blit(self.font.render(ctrl, True, self.text_color), (x, y))
             y += 18
+        
+        # Energy Plot at bottom
+        p_rect = pygame.Rect(self.rect.x + 10, self.rect.bottom - 110, self.rect.w - 20, 100)
+        pygame.draw.rect(surface, (20, 20, 30), p_rect)
+        pygame.draw.rect(surface, (150, 150, 150), p_rect, 1)
+        surface.blit(self.font.render("Total Energy Production", True, (0, 255, 200)), (p_rect.x + 5, p_rect.y + 5))
+        
+        if len(self.energy_history) > 1:
+            pts = []
+            max_e = max(max(self.energy_history), 1)
+            for i, val in enumerate(self.energy_history):
+                px = p_rect.x + (i / self.max_hist) * p_rect.w
+                py = p_rect.bottom - 5 - (val / max_e * (p_rect.h - 25))
+                pts.append((int(px), int(py)))
+            pygame.draw.lines(surface, (0, 255, 200), False, pts, 2)
 
 class ChatPanel:
     def __init__(self, x, y, w, h, font):

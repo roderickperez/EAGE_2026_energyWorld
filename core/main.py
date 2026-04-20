@@ -2,9 +2,33 @@ import sys
 import pygame
 import menu
 import level0.level0_main as level0
+import save_system
+
+def show_continue_prompt(screen, fonts):
+    font, large_font, _ = fonts
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+    
+    msg = "Saved session found. Continue? [C] Continue | [N] New Game"
+    txt = large_font.render(msg, True, (255, 255, 255))
+    rect = txt.get_rect(center=(screen.get_width()//2, screen.get_height()//2))
+    screen.blit(txt, rect)
+    pygame.display.flip()
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return None
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_c:
+                    return save_system.load_game()
+                if event.key == pygame.K_n:
+                    return None
 
 def main():
     pygame.init()
+    # ... (rest of setup)
 
     # Layout
     DISPLAY_INFO = pygame.display.Info()
@@ -61,7 +85,11 @@ def main():
 
         elif game_state == "LEVEL0":
             # Pass control to level0_main
-            result = level0.run(screen, clock, fonts)
+            initial_state = None
+            if save_system.save_exists():
+                initial_state = show_continue_prompt(screen, fonts)
+            
+            result = level0.run(screen, clock, fonts, initial_state)
             if result == "QUIT":
                 running = False
             elif result == "MENU":

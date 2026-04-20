@@ -11,7 +11,9 @@ BASE_TILE_W = 64
 BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
-def run(screen, clock, fonts):
+import save_system
+
+def run(screen, clock, fonts, initial_state=None):
     font, large_font, huge_font = fonts
     SCREEN_W, SCREEN_H = screen.get_size()
     ISO_W = int(SCREEN_W * 0.80)
@@ -150,6 +152,19 @@ def run(screen, clock, fonts):
     top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
+    
+    # Load initial state if provided
+    if initial_state:
+        world_data = initial_state["world_data"]
+        time_manager.current_date = initial_state["current_date"]
+        cam_x = initial_state["cam_x"]
+        cam_y = initial_state["cam_y"]
+        zoom = initial_state["zoom"]
+        render_list = world.calculate_visible_blocks(world_data)
+        render_list.sort(key=render_sort_key)
+        update_sprite_cache(zoom)
+        cached_map_valid = False
+
     dragging = False
 
     running = True
@@ -197,6 +212,11 @@ def run(screen, clock, fonts):
                         hover_mode = "ROAD"
                     selected_slice = None
                 elif event.key == pygame.K_s:
+                    # [S] is now SAVE
+                    save_system.save_game(world_data, time_manager, cam_x, cam_y, zoom)
+                    chat_panel.add_message("System", "Game state saved successfully.")
+                elif event.key == pygame.K_l:
+                    # [L] is now SOLAR
                     hover_mode = "SOLAR"
                     selected_slice = None
                 elif event.key == pygame.K_w:
@@ -272,12 +292,18 @@ def run(screen, clock, fonts):
         # Solar State Update
         solar_irradiance = time_manager.get_solar_irradiance()
         installed_panels = []
+        total_production = 0
         for y in range(world.GRID_SIZE):
             for x in range(world.GRID_SIZE):
-                if world_data[world.MAX_Z - 1][y][x] == 4:
-                    # Production = base (say 80) * irradiance
+                bid = world_data[world.MAX_Z - 1][y][x]
+                if bid == 4: # Solar
                     prod = 80 * solar_irradiance
                     installed_panels.append((x, y, prod))
+                    total_production += prod
+                elif bid == 5: # Wind
+                    # Constant-ish wind for now
+                    total_production += 50
+        
         solar_dashboard.update(solar_irradiance, installed_panels)
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
@@ -438,7 +464,7 @@ def run(screen, clock, fonts):
         m_txt = f"Mode: {hover_mode}"
         if hover_mode == "ROAD" and road_id_list:
             m_txt += f" ({ROAD_VARIANTS[road_id_list[selected_road_idx]]})"
-        iso_surf.blit(font.render(f"{m_txt} (Press R, S, W, I, X, C)", True, (255, 200, 100)), (10, 28))
+        iso_surf.blit(font.render(f"{m_txt} (Press R, L, W, I, X, C, S)", True, (255, 200, 100)), (10, 28))
         
         # Level 0 label
         lvl0_surf = huge_font.render("Level 0", True, (255, 255, 255))
@@ -472,8 +498,9 @@ def run(screen, clock, fonts):
                 "[T] - Inline Selection",
                 "[X] - Xline Selection",
                 "[R] - Road (Cycle variants)",
-                "[S] - Solar Mode",
+                "[L] - Solar Mode",
                 "[W] - Wind Mode",
+                "[S] - Save Game",
                 "[I] - Toggle Info Panel",
                 "[A] - Toggle AI Chat",
                 "L Click - Select/Place",
@@ -481,7 +508,7 @@ def run(screen, clock, fonts):
                 "Wheel - Zoom",
                 "ESC - Back to Menu"
             ]
-            info_panel.draw(screen, g_info, controls)
+            info_panel.draw(screen, g_info, controls, total_production)
 
         if show_chat_panel and hover_mode != "SOLAR":
             chat_panel.draw(screen)
