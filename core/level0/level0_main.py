@@ -64,17 +64,25 @@ def run(screen, clock, fonts, save_data=None):
             SPRITES[4].set_colorkey(SPRITES[4].get_at((0,0)))
         except: pass
         try:
-            raw_wind = pygame.image.load("assests/windTurbine0_V2.png").convert()
-            # Maintain aspect ratio, scale to reasonable height for the engine (e.g. 320px)
-            w, h = raw_wind.get_size()
-            target_h = 320
-            scale = target_h / h
-            scaled_wind = pygame.transform.smoothscale(raw_wind, (int(w * scale), target_h))
-            
-            # Clean artifacts on the smaller, optimized surface
-            SPRITES[5] = clean_white_background(scaled_wind, threshold=30)
+            # Load animation frames for wind turbine (ID 5)
+            SPRITES[5] = []
+            frame_paths = [
+                "assests/windTurbine_whiteBackground_V2.png",
+                "assests/windTurbine_whiteBackground_V3.png",
+                "assests/windTurbine_whiteBackground_V4.png",
+                "assests/windTurbine_whiteBackground_V5.png"
+            ]
+            for path in frame_paths:
+                raw_frame = pygame.image.load(path).convert()
+                # Maintain aspect ratio, scale to reasonable height
+                wf, hf = raw_frame.get_size()
+                target_hf = 320
+                sc = target_hf / hf
+                scaled_frame = pygame.transform.smoothscale(raw_frame, (int(wf * sc), target_hf))
+                # Clean each frame surgically
+                SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
         except Exception as e:
-            print(f"Warning: windTurbine0_V2.png optimized load failed: {e}")
+            print(f"Warning: windTurbine animation load failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
@@ -109,9 +117,19 @@ def run(screen, clock, fonts, save_data=None):
         tile_w = BASE_TILE_W * zoom_level
         SCALED_SPRITES = {}
         for b_id, sprite in SPRITES.items():
-            scale_w = int(tile_w)
-            scale_h = int(scale_w * (sprite.get_height() / sprite.get_width()))
-            SCALED_SPRITES[b_id] = pygame.transform.scale(sprite, (scale_w + 1, scale_h + 1))
+            if isinstance(sprite, list):
+                # Handle animation frames
+                SCALED_SPRITES[b_id] = []
+                for frame in sprite:
+                    sw = int(tile_w)
+                    sh = int(sw * (frame.get_height() / frame.get_width()))
+                    SCALED_SPRITES[b_id].append(pygame.transform.scale(frame, (sw + 1, sh + 1)))
+            else:
+                scale_w = int(tile_w)
+                scale_h = int(scale_w * (sprite.get_height() / sprite.get_width()))
+                SCALED_SPRITES[b_id] = pygame.transform.scale(sprite, (scale_w + 1, scale_h + 1))
+        
+    update_sprite_cache(zoom) # Initial cache build
 
     # World data
     print("Generating Level 0 world...")
@@ -453,13 +471,22 @@ def run(screen, clock, fonts, save_data=None):
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
                 
-                rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
-                iso_surf.blit(sprite, rect)
+                # Dynamic frame selection for animated sprites
+                draw_sprite = sprite
+                if isinstance(sprite, list):
+                    # Cycle through frames based on ticks (e.g. 100ms per frame)
+                    # We use unique seeds to make different turbines out of sync? 
+                    # For now just global cycle
+                    f_idx = (pygame.time.get_ticks() // 80) % len(sprite)
+                    draw_sprite = sprite[f_idx]
+                
+                rect = draw_sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
+                iso_surf.blit(draw_sprite, rect)
                 
                 # Apply highlight tint if applicable
                 if is_hovering_map and block_is_highlighted(x, y, z, active_hx, active_hy):
                     if hover_mode in ("INLINE", "XLINE"):
-                        mask = pygame.mask.from_surface(sprite)
+                        mask = pygame.mask.from_surface(draw_sprite)
                         red_surf = mask.to_surface(setcolor=(255, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
                         red_surf.set_alpha(170)
                         iso_surf.blit(red_surf, rect)
