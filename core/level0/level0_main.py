@@ -91,7 +91,7 @@ def run(screen, clock, fonts, save_data=None):
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
             scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
-            # Conservative threshold to prevent asset-eating on JPGs
+            # Optimal threshold for JPG artifacts (2 was too low)
             SPRITES[6] = clean_white_background(scaled_coal, threshold=10)
             print(f"Coal plant asset processed (ID 6). Size: {SPRITES[6].get_size()}")
         except Exception as e:
@@ -488,7 +488,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 60 # Slightly raised to avoid z-depth issues
+                if b_id == 6: offset_y = 150 # Height correction to ground the 200px tall asset
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
