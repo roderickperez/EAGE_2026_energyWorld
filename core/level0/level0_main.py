@@ -191,7 +191,9 @@ def run(screen, clock, fonts, save_data=None):
     def screen_to_iso_grid(sx: int, sy: int, tile_w: float, tile_h: float,
                            cam_x: float, cam_y: float) -> tuple[int, int]:
         iso_x = sx - ISO_W / 2 - cam_x
-        iso_y = sy - SCREEN_H / 2 - cam_y + ((world.MAX_Z - 1) * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
+        # Corrected offset for top-face intersection (Center-Z=9 is 288, Top-face is another 16px up)
+        # Using 304 * zoom ensures clicking the visual top face returns the correct gx, gy
+        iso_y = sy - SCREEN_H / 2 - cam_y + (304 * (tile_w / BASE_TILE_W))
         dx = (iso_y / (tile_h / 2) + iso_x / (tile_w / 2)) / 2
         dy = (iso_y / (tile_h / 2) - iso_x / (tile_w / 2)) / 2
         gx = world.GRID_SIZE - 1 - math.floor(dx)
@@ -221,9 +223,9 @@ def run(screen, clock, fonts, save_data=None):
     MIN_ZOOM = get_fit_zoom()
     zoom = MIN_ZOOM
     update_sprite_cache(zoom)
-    # Corrected target name for walrus used above
-    top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
-    bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    # Initial camera should center the visual top surface
+    top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] - (BASE_TILE_H * zoom / 2)
+    bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1] + (BASE_TILE_H * zoom / 2)
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
     dragging = False
 
@@ -538,10 +540,11 @@ def run(screen, clock, fonts, save_data=None):
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
                 cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
                 
-                t_f = (cx, cy - tile_h / 2)
-                r_f = (cx + tile_w / 2, cy)
-                b_f = (cx, cy + tile_h / 2)
-                l_f = (cx - tile_w / 2, cy)
+                # Shift highlight triangle to the top surface
+                t_f = (cx, cy - tile_h)
+                r_f = (cx + tile_w / 2, cy - tile_h / 2)
+                b_f = (cx, cy)
+                l_f = (cx - tile_w / 2, cy - tile_h / 2)
                 
                 if hover_mode == "ROAD":
                     rid = road_id_list[selected_road_idx] if road_id_list else 3
