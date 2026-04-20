@@ -572,6 +572,7 @@ def run(screen, clock, fonts, save_data=None):
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
                 if b_id == 6: offset_y = 55 # Lowered for better grounding
+                if b_id in [10, 11]: offset_y = 12 # Lift buildings slightly to align with surface
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
@@ -939,7 +940,7 @@ def run(screen, clock, fonts, save_data=None):
             screen.blit(notif_surf, notif_rect)
 
         # Balance Overlay (Bottom Right of Isometric View)
-        balance_str = f"BALANCE: ${balance:,}"
+        balance_str = f"BALANCE: ${int(balance):,}"
         bal_surf = large_font.render(balance_str, True, (0, 255, 100))
         bal_rect = bal_surf.get_rect(bottomright=(ISO_W - 20, SCREEN_H - 20))
         # Semi-transparent backing
