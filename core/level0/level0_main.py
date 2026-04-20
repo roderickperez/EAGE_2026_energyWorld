@@ -81,6 +81,7 @@ def run(screen, clock, fonts, save_data=None):
                 scaled_frame = pygame.transform.smoothscale(raw_frame, (int(wf * sc), target_hf))
                 # Clean each frame surgically
                 SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
+            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation.")
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
 
@@ -467,14 +468,13 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
+                if b_id == 5: 
+                    offset_y = 0 # Base of turbine should be on the ground if sprite includes tower
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
                 if isinstance(sprite, list):
-                    # Cycle through frames based on ticks (e.g. 100ms per frame)
-                    # We use unique seeds to make different turbines out of sync? 
-                    # For now just global cycle
+                    if not sprite: continue
                     f_idx = (pygame.time.get_ticks() // 80) % len(sprite)
                     draw_sprite = sprite[f_idx]
                 
