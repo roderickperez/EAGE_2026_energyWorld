@@ -489,7 +489,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 100 # Corrected elevation for industrial scale
+                if b_id == 6: offset_y = 70 # Lowered for better grounding
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
