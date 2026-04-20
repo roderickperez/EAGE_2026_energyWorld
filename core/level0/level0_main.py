@@ -49,11 +49,17 @@ def run(screen, clock, fonts, save_data=None):
             SPRITES[4].set_colorkey(SPRITES[4].get_at((0,0)))
         except: pass
         try:
-            SPRITES[5] = pygame.image.load("assests/windTurbine_whiteBackground.png").convert()
-            # Clean artifacts before setting colorkey
-            SPRITES[5] = clean_white_background(SPRITES[5])
+            raw_wind = pygame.image.load("assests/windTurbine_whiteBackground.png").convert()
+            # Maintain aspect ratio, scale to reasonable height for the engine (e.g. 320px)
+            w, h = raw_wind.get_size()
+            target_h = 320
+            scale = target_h / h
+            scaled_wind = pygame.transform.smoothscale(raw_wind, (int(w * scale), target_h))
+            
+            # Clean artifacts on the smaller, optimized surface
+            SPRITES[5] = clean_white_background(scaled_wind, threshold=30)
         except Exception as e:
-            print(f"Warning: windTurbine_whiteBackground.png clean failed: {e}")
+            print(f"Warning: windTurbine_whiteBackground.png optimized load failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
@@ -382,7 +388,7 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: offset_y = 300 # Extremly high elevation for wind turbines
+                if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
                 
                 rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(sprite, rect)
