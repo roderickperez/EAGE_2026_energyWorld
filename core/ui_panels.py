@@ -127,6 +127,21 @@ class ChatPanel:
         if len(self.messages) > 15:
             self.messages.pop(0)
 
+    def _wrap_text(self, text, max_width):
+        words = text.split(' ')
+        lines = []
+        current_line = []
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            w, _ = self.font.size(test_line)
+            if w <= max_width:
+                current_line.append(word)
+            else:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+        lines.append(' '.join(current_line))
+        return lines
+
     def draw(self, surface):
         # Background
         bg_surf = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
@@ -142,12 +157,21 @@ class ChatPanel:
         msg_area = pygame.Rect(x, y, self.rect.w - 30, self.rect.h - 100)
         pygame.draw.rect(surface, (20, 20, 30), msg_area)
         
-        inner_y = y + 5
-        for author, msg in self.messages[-10:]:
+        # Wrapping and rendering
+        max_txt_w = msg_area.w - 10
+        all_lines = []
+        for author, msg in self.messages:
             color = (0, 200, 255) if author == "AI" else (200, 255, 200)
             prefix = f"[{author}]: "
-            surface.blit(self.font.render(prefix + msg, True, color), (x + 5, inner_y))
-            inner_y += 25
+            wrapped = self._wrap_text(prefix + msg, max_txt_w)
+            for line in wrapped:
+                all_lines.append((line, color))
+        
+        inner_y = msg_area.y + 5
+        # Show last N lines that fit
+        for line_txt, color in all_lines[-15:]:
+            surface.blit(self.font.render(line_txt, True, color), (msg_area.x + 5, inner_y))
+            inner_y += 22
             
         # Input area
         y_in = self.rect.bottom - 40
