@@ -49,7 +49,7 @@ def run(screen, clock, fonts, save_data=None):
             SPRITES[4].set_colorkey(SPRITES[4].get_at((0,0)))
         except: pass
         try:
-            raw_wind = pygame.image.load("assests/windTurbine_whiteBackground.png").convert()
+            raw_wind = pygame.image.load("assests/windTurbine0_V2.png").convert()
             # Maintain aspect ratio, scale to reasonable height for the engine (e.g. 320px)
             w, h = raw_wind.get_size()
             target_h = 320
@@ -59,7 +59,7 @@ def run(screen, clock, fonts, save_data=None):
             # Clean artifacts on the smaller, optimized surface
             SPRITES[5] = clean_white_background(scaled_wind, threshold=30)
         except Exception as e:
-            print(f"Warning: windTurbine_whiteBackground.png optimized load failed: {e}")
+            print(f"Warning: windTurbine0_V2.png optimized load failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
