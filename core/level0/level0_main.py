@@ -128,8 +128,6 @@ def run(screen, clock, fonts, save_data=None):
                 scale_w = int(tile_w)
                 scale_h = int(scale_w * (sprite.get_height() / sprite.get_width()))
                 SCALED_SPRITES[b_id] = pygame.transform.scale(sprite, (scale_w + 1, scale_h + 1))
-        
-    update_sprite_cache(zoom) # Initial cache build
 
     # World data
     print("Generating Level 0 world...")
