@@ -5,15 +5,14 @@ import pygame
 import level0.level0_world as world
 import time_system
 import ui_panels
+import save_manager
 
 # Layout constants (shared logic)
 BASE_TILE_W = 64
 BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
-import save_system
-
-def run(screen, clock, fonts, initial_state=None):
+def run(screen, clock, fonts, save_data=None):
     font, large_font, huge_font = fonts
     SCREEN_W, SCREEN_H = screen.get_size()
     ISO_W = int(SCREEN_W * 0.80)
@@ -80,7 +79,12 @@ def run(screen, clock, fonts, initial_state=None):
 
     # World data
     print("Generating Level 0 world...")
-    world_data = world.generate_world()
+    if save_data:
+        world_data = save_data["world_data"]
+        time_manager.current_date = save_data["current_date"]
+    else:
+        world_data = world.generate_world()
+    
     render_list = world.calculate_visible_blocks(world_data)
     
     # Interaction state
@@ -152,19 +156,6 @@ def run(screen, clock, fonts, initial_state=None):
     top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
-    
-    # Load initial state if provided
-    if initial_state:
-        world_data = initial_state["world_data"]
-        time_manager.current_date = initial_state["current_date"]
-        cam_x = initial_state["cam_x"]
-        cam_y = initial_state["cam_y"]
-        zoom = initial_state["zoom"]
-        render_list = world.calculate_visible_blocks(world_data)
-        render_list.sort(key=render_sort_key)
-        update_sprite_cache(zoom)
-        cached_map_valid = False
-
     dragging = False
 
     running = True
@@ -212,11 +203,6 @@ def run(screen, clock, fonts, initial_state=None):
                         hover_mode = "ROAD"
                     selected_slice = None
                 elif event.key == pygame.K_s:
-                    # [S] is now SAVE
-                    save_system.save_game(world_data, time_manager, cam_x, cam_y, zoom)
-                    chat_panel.add_message("System", "Game state saved successfully.")
-                elif event.key == pygame.K_l:
-                    # [L] is now SOLAR
                     hover_mode = "SOLAR"
                     selected_slice = None
                 elif event.key == pygame.K_w:
@@ -274,6 +260,9 @@ def run(screen, clock, fonts, initial_state=None):
                         # Request map update
                         cached_map_valid = False
 
+                if event.key == pygame.K_F1:
+                    save_manager.save_session(world_data, time_manager.current_date)
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0] < ISO_W and event.button in (4, 5):
                 prev_zoom = zoom
                 zoom = min(2.5, zoom * 1.1) if event.button == 4 else max(MIN_ZOOM, zoom / 1.1)
@@ -292,7 +281,7 @@ def run(screen, clock, fonts, initial_state=None):
         # Solar State Update
         solar_irradiance = time_manager.get_solar_irradiance()
         installed_panels = []
-        total_production = 0
+        total_production = 0.0
         for y in range(world.GRID_SIZE):
             for x in range(world.GRID_SIZE):
                 bid = world_data[world.MAX_Z - 1][y][x]
@@ -301,10 +290,13 @@ def run(screen, clock, fonts, initial_state=None):
                     installed_panels.append((x, y, prod))
                     total_production += prod
                 elif bid == 5: # Wind
-                    # Constant-ish wind for now
-                    total_production += 50
+                    # Assume constant or wind-scaled production
+                    total_production += 50.0 
         
         solar_dashboard.update(solar_irradiance, installed_panels)
+        info_panel.energy_history.append(total_production)
+        if len(info_panel.energy_history) > info_panel.max_hist:
+            info_panel.energy_history.pop(0)
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
         is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
@@ -464,7 +456,7 @@ def run(screen, clock, fonts, initial_state=None):
         m_txt = f"Mode: {hover_mode}"
         if hover_mode == "ROAD" and road_id_list:
             m_txt += f" ({ROAD_VARIANTS[road_id_list[selected_road_idx]]})"
-        iso_surf.blit(font.render(f"{m_txt} (Press R, L, W, I, X, C, S)", True, (255, 200, 100)), (10, 28))
+        iso_surf.blit(font.render(f"{m_txt} (Press R, S, W, I, X, C)", True, (255, 200, 100)), (10, 28))
         
         # Level 0 label
         lvl0_surf = huge_font.render("Level 0", True, (255, 255, 255))
@@ -498,9 +490,8 @@ def run(screen, clock, fonts, initial_state=None):
                 "[T] - Inline Selection",
                 "[X] - Xline Selection",
                 "[R] - Road (Cycle variants)",
-                "[L] - Solar Mode",
+                "[S] - Solar Mode",
                 "[W] - Wind Mode",
-                "[S] - Save Game",
                 "[I] - Toggle Info Panel",
                 "[A] - Toggle AI Chat",
                 "L Click - Select/Place",
@@ -508,7 +499,7 @@ def run(screen, clock, fonts, initial_state=None):
                 "Wheel - Zoom",
                 "ESC - Back to Menu"
             ]
-            info_panel.draw(screen, g_info, controls, total_production)
+            info_panel.draw(screen, g_info, controls)
 
         if show_chat_panel and hover_mode != "SOLAR":
             chat_panel.draw(screen)

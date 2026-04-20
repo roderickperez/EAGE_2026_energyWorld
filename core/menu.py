@@ -7,10 +7,11 @@ class MenuButton:
         self.level_id = level_id
         self.font = font
         self.hovered = False
+        self.bg_color = (40, 45, 60)
 
     def draw(self, surf):
         # Premium look: darker base, lighter highlight on hover
-        base_color = (40, 45, 60)
+        base_color = self.bg_color
         hover_color = (70, 80, 110)
         color = hover_color if self.hovered else base_color
         
