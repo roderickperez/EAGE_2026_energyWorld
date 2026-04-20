@@ -432,8 +432,11 @@ def run(screen, clock, fonts):
         iso_surf.blit(lvl0_surf, (20, SCREEN_H - 60))
 
         # Time UI
-        time_str = time_manager.get_time_string()
-        time_surf = large_font.render(time_str, True, (255, 255, 255))
+        date_str = time_manager.get_formatted_date()
+        time_str = time_manager.get_formatted_time()
+        
+        hud_str = f"{date_str} - {time_str}"
+        time_surf = large_font.render(hud_str, True, (255, 255, 255))
         time_rect = time_surf.get_rect(topright=(ISO_W - 20, 20))
         iso_surf.blit(time_surf, time_rect)
         

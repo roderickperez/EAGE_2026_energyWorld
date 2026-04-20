@@ -23,6 +23,12 @@ class TimeManager:
         """Returns formatted Date - Time string."""
         return self.current_date.strftime("%b %d, %Y - %H:%M")
 
+    def get_formatted_date(self):
+        return self.current_date.strftime("%b %d, %Y")
+
+    def get_formatted_time(self):
+        return self.current_date.strftime("%H:%M:%S")
+
     def get_lighting_tint(self):
         """
         Calculates an RGB tint based on the hour of the day.
