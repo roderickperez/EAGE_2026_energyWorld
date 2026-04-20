@@ -85,6 +85,19 @@ def run(screen, clock, fonts, save_data=None):
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
 
+        # Load Coal Plant (ID 6)
+        path_coal = "assests/coalPlant_V1.png"
+        try:
+            raw_coal = pygame.image.load(path_coal).convert()
+            # Scale to standard building height? Let's use 160px for now
+            target_h_coal = 160
+            wf, hf = raw_coal.get_size()
+            sc = target_h_coal / hf
+            SPRITES[6] = clean_white_background(pygame.transform.smoothscale(raw_coal, (int(wf * sc), target_h_coal)), threshold=30)
+            print("Loaded Coal Plant asset.")
+        except Exception as e:
+            print(f"Warning: Coal Plant load failed: {e}")
+
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
         road_id_list = []
@@ -251,9 +264,12 @@ def run(screen, clock, fonts, save_data=None):
                 if event.key == pygame.K_ESCAPE:
                     return "MENU"
                 elif event.key == pygame.K_c:
-                    hover_mode = "CELL"
+                    hover_mode = "COAL"
                     selected_slice = None
                 elif event.key == pygame.K_i:
+                    hover_mode = "CELL"
+                    selected_slice = None
+                elif event.key == pygame.K_F2:
                     show_info_panel = not show_info_panel
                 elif event.key == pygame.K_a:
                     show_chat_panel = not show_chat_panel
@@ -282,13 +298,14 @@ def run(screen, clock, fonts, save_data=None):
                     selected_slice = None
                 elif event.key == pygame.K_RETURN:
                     # Alternative placement trigger
-                    if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND"):
+                    if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND", "COAL"):
                         # Re-use logic from mouse click
                         bid = 3
                         if hover_mode == "ROAD" and road_id_list:
                             bid = road_id_list[selected_road_idx]
                         elif hover_mode == "SOLAR": bid = 4
                         elif hover_mode == "WIND": bid = 5
+                        elif hover_mode == "COAL": bid = 6
                         
                         world_data[world.MAX_Z - 1][gy_h][gx_h] = bid
                         for i, (z, y, x, b_id) in enumerate(render_list):
@@ -330,6 +347,9 @@ def run(screen, clock, fonts, save_data=None):
                         elif hover_mode == "WIND": 
                             target_bid = 5
                             cost_buy = 10000
+                        elif hover_mode == "COAL":
+                            target_bid = 6
+                            cost_buy = 25000
                         
                         current_bid = world_data[world.MAX_Z - 1][gy][gx]
                         
@@ -359,6 +379,7 @@ def run(screen, clock, fonts, save_data=None):
                             if current_bid >= 100 or current_bid == 3: cost_remove = 250 # Road
                             elif current_bid == 4: cost_remove = 2500 # Solar
                             elif current_bid == 5: cost_remove = 20000 # Wind
+                            elif current_bid == 6: cost_remove = 50000 # Coal
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -471,6 +492,8 @@ def run(screen, clock, fonts, save_data=None):
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: 
                     offset_y = 0 # Base of turbine should be on the ground if sprite includes tower
+                if b_id == 6: 
+                    offset_y = 0 # Coal plant base on ground
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
