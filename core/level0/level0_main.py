@@ -270,19 +270,19 @@ def run(screen, clock, fonts, save_data=None):
                     return "MENU"
                 elif event.key == pygame.K_n:
                     show_info_panel = not show_info_panel
-                elif event.key == pygame.K_r: 
+                elif event.key == pygame.K_h: 
                     hover_mode = "RESIDENTIAL"
-                    notification_text = "Residential Zoning Mode"
+                    notification_text = "Housing Zone Mode"
                     notification_color = (0, 150, 255)
                     notification_timer = pygame.time.get_ticks() + 2000
                 elif event.key == pygame.K_i: 
                     hover_mode = "INDUSTRIAL"
-                    notification_text = "Industrial Zoning Mode"
+                    notification_text = "Industrial Zone Mode"
                     notification_color = (255, 150, 0)
                     notification_timer = pygame.time.get_ticks() + 2000
                 elif event.key == pygame.K_b: 
                     hover_mode = "BUSINESS"
-                    notification_text = "Business Zoning Mode"
+                    notification_text = "Business Zone Mode"
                     notification_color = (150, 200, 255)
                     notification_timer = pygame.time.get_ticks() + 2000
                 elif event.key == pygame.K_a:
@@ -298,7 +298,7 @@ def run(screen, clock, fonts, save_data=None):
                     selected_slice = None
                 elif event.key == pygame.K_x:
                     hover_mode = "XLINE"
-                elif event.key == pygame.K_o: # Remapped Road to [O]
+                elif event.key == pygame.K_r: # Restored Road to [R]
                     if hover_mode == "ROAD" and road_id_list:
                         selected_road_idx = (selected_road_idx + 1) % len(road_id_list)
                     else:
@@ -742,10 +742,10 @@ def run(screen, clock, fonts, save_data=None):
             }
             controls = [
                 "[N] - Info Toggle",
-                "[R] - Residential Zone",
+                "[H] - Housing Zone",
                 "[I] - Industrial Zone",
                 "[B] - Business Zone",
-                "[O] - Road (Cycle variants)",
+                "[R] - Road (Cycle variants)",
                 "[S] - Solar Mode",
                 "[W] - Wind Mode",
                 "[C] - Coal Plant",
