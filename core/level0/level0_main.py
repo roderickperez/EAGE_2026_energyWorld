@@ -480,7 +480,7 @@ def run(screen, clock, fonts):
             # td_tile already calculated at startup
             off_x = (PANEL_W - (world.GRID_SIZE * td_tile)) // 2
             off_y = (PANEL_H - (world.GRID_SIZE * td_tile)) // 2 + 10
-            bot_surf.blit(large_font.render("N ↖", True, (255, 100, 100)), (10, 30))
+            bot_surf.blit(large_font.render("N ↙", True, (255, 100, 100)), (10, 30))
 
             # Optimize Top-down map rendering with surface caching
             if not cached_map_valid:
@@ -490,7 +490,7 @@ def run(screen, clock, fonts):
                         bid_top = world_data[world.MAX_Z - 1][y][x]
                         if bid_top == 1: continue # Grass is base
                         color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
-                        pygame.draw.rect(map_content_surf, color, (x * td_tile, y * td_tile, td_tile, td_tile))
+                        pygame.draw.rect(map_content_surf, color, (x * td_tile, (world.GRID_SIZE - 1 - y) * td_tile, td_tile, td_tile))
                 cached_map_valid = True
             
             bot_surf.blit(map_content_surf, (off_x, off_y))
@@ -508,16 +508,14 @@ def run(screen, clock, fonts):
                         slice_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
                         h_col = (255, 50, 50, 150)
                         if hover_mode == "INLINE":
-                            pygame.draw.rect(slice_surf, h_col, (off_x, gy_h * td_tile + off_y, world.GRID_SIZE * td_tile, td_tile))
+                            pygame.draw.rect(slice_surf, h_col, (off_x, (world.GRID_SIZE - 1 - gy_h) * td_tile + off_y, world.GRID_SIZE * td_tile, td_tile))
                         else:
                             pygame.draw.rect(slice_surf, h_col, (gx_h * td_tile + off_x, off_y, td_tile, world.GRID_SIZE * td_tile))
                         bot_surf.blit(slice_surf, (0, 0))
                         
-                        # Draw active cell darker
-                        pygame.draw.rect(bot_surf, (150, 0, 0), (gx_h * td_tile + off_x, gy_h * td_tile + off_y, td_tile, td_tile))
-                    else:
-                        # Single cell highlight
-                        pygame.draw.rect(bot_surf, highlight_color, (gx_h * td_tile + off_x, gy_h * td_tile + off_y, td_tile, td_tile))
+                        # Adjust Y for inverted map
+                        m_y = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_y
+                        pygame.draw.rect(bot_surf, highlight_color, (gx_h * td_tile + off_x, m_y, td_tile, td_tile))
 
         else:
             title = f"CROSS-SECTION: {selected_slice['type']} {selected_slice['index']}"
