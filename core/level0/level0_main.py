@@ -79,9 +79,9 @@ def run(screen, clock, fonts, save_data=None):
                 target_hf = 320
                 sc = target_hf / hf
                 scaled_frame = pygame.transform.smoothscale(raw_frame, (int(wf * sc), target_hf))
-                # Skip cleaning for now to troubleshoot visibility - keep white background
-                SPRITES[5].append(scaled_frame)
-            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation (Original White).")
+                # Restore alpha cleaning now that visibility is verified
+                SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
+            print(f"Loaded {len(SPRITES[5])} frames for Wind Turbine animation (Alpha Cleaned).")
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
 
@@ -223,6 +223,10 @@ def run(screen, clock, fonts, save_data=None):
     while running:
         mx, my = pygame.mouse.get_pos()
         time_manager.update(1.0/60.0)
+        
+        # Pre-calculate hover state for event handlers
+        gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
+        is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -415,9 +419,6 @@ def run(screen, clock, fonts, save_data=None):
         info_panel.energy_history.append(total_production)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
-
-        gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
-        is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
 
         # Panel 1: Isometric
         iso_surf = pygame.Surface((ISO_W, SCREEN_H))
