@@ -573,7 +573,7 @@ def run(screen, clock, fonts, save_data=None):
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
                 if b_id == 6: offset_y = 55 # Lowered for better grounding
                 if b_id == 11: offset_y = 24 # Office elevation
-                if b_id == 10: offset_y = 36 # House elevation (moved higher as requested)
+                if b_id == 10: offset_y = 48 # House elevation (moved more up as requested)
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
