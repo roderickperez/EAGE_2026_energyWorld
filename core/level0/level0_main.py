@@ -158,6 +158,10 @@ def run(screen, clock, fonts, save_data=None):
     cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
     dragging = False
 
+    # Notifications
+    notification_text = ""
+    notification_timer = 0
+
     running = True
     while running:
         mx, my = pygame.mouse.get_pos()
@@ -230,6 +234,8 @@ def run(screen, clock, fonts, save_data=None):
                 
                 elif event.key == pygame.K_F1:
                     save_manager.save_session(world_data, time_manager.current_date)
+                    notification_text = "GAME SAVED"
+                    notification_timer = pygame.time.get_ticks() + 2000
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2 and event.pos[0] < ISO_W:
                 dragging = True
@@ -616,6 +622,16 @@ def run(screen, clock, fonts, save_data=None):
         screen.blit(bot_surf, (ISO_W, PANEL_H))
         pygame.draw.line(screen, (60, 60, 60), (ISO_W, 0), (ISO_W, SCREEN_H), 2)
         pygame.draw.line(screen, (60, 60, 60), (ISO_W, PANEL_H), (SCREEN_W, PANEL_H), 2)
+
+        # Notifications (Upper Left, but centered-ish)
+        if pygame.time.get_ticks() < notification_timer:
+            notif_surf = large_font.render(notification_text, True, (0, 255, 0))
+            notif_rect = notif_surf.get_rect(center=(ISO_W // 2, 50))
+            # Background logic for better visibility
+            bg_rect = notif_rect.inflate(40, 20)
+            pygame.draw.rect(screen, (30, 60, 30, 200), bg_rect, border_radius=10)
+            pygame.draw.rect(screen, (0, 255, 0), bg_rect, 2, border_radius=10)
+            screen.blit(notif_surf, notif_rect)
 
         pygame.display.flip()
         clock.tick(60)
