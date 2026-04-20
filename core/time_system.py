@@ -59,6 +59,23 @@ class TimeManager:
         else: # Full night
             return NIGHT_COLOR
 
+    def get_solar_irradiance(self):
+        """Returns normalized solar irradiance (0.0 to 1.0) based on time of day."""
+        hour = self.current_date.hour + self.current_date.minute / 60.0 + self.current_date.second / 3600.0
+        # Simple model: Sunrise 6:00, Sunset 18:00
+        if 6.0 <= hour < 18.0:
+            # Shift 6-18 to 0-12, normalize to 0-pi
+            import math
+            return math.sin((hour - 6.0) / 12.0 * math.pi)
+        return 0.0
+
+    def get_solar_elevation(self):
+        """Returns solar elevation angle in degrees (-90 to 90)."""
+        hour = self.current_date.hour + self.current_date.minute / 60.0
+        # Solar noon at 12:00
+        val = 90 * (1 - abs(hour - 12) / 6)
+        return max(-90, val)
+
     def _interpolate(self, col1, col2, t):
         r = int(col1[0] + (col2[0] - col1[0]) * t)
         g = int(col1[1] + (col2[1] - col1[1]) * t)

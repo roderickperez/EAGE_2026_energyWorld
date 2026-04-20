@@ -95,6 +95,7 @@ def run(screen, clock, fonts):
     panel_rect = (ISO_W + 10, 10, PANEL_W - 20, PANEL_H - 20)
     info_panel = ui_panels.InfoPanel(*panel_rect, font)
     chat_panel = ui_panels.ChatPanel(*panel_rect, font)
+    solar_dashboard = ui_panels.SolarDashboard(*panel_rect, font)
     show_info_panel = True
     show_chat_panel = False
 
@@ -267,6 +268,17 @@ def run(screen, clock, fonts):
 
         tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
         screen.fill((20, 20, 20))
+
+        # Solar State Update
+        solar_irradiance = time_manager.get_solar_irradiance()
+        installed_panels = []
+        for y in range(world.GRID_SIZE):
+            for x in range(world.GRID_SIZE):
+                if world_data[world.MAX_Z - 1][y][x] == 4:
+                    # Production = base (say 80) * irradiance
+                    prod = 80 * solar_irradiance
+                    installed_panels.append((x, y, prod))
+        solar_dashboard.update(solar_irradiance, installed_panels)
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
         is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
@@ -445,12 +457,15 @@ def run(screen, clock, fonts):
         screen.blit(iso_surf, (0, 0))
 
         # Right Hand UI Panels
-        if show_info_panel:
+        if hover_mode == "SOLAR":
+            solar_dashboard.draw(screen)
+        elif show_info_panel:
             g_info = {
                 "Grid": f"{world.GRID_SIZE}x{world.GRID_SIZE}x{world.MAX_Z}",
                 "Hover": f"({active_hx}, {active_hy})",
                 "Date": date_str,
-                "Time": time_str
+                "Time": time_str,
+                "Irradiance": f"{solar_irradiance:.2f}"
             }
             controls = [
                 "[C] - Cell Selection",
@@ -468,7 +483,7 @@ def run(screen, clock, fonts):
             ]
             info_panel.draw(screen, g_info, controls)
 
-        if show_chat_panel:
+        if show_chat_panel and hover_mode != "SOLAR":
             chat_panel.draw(screen)
 
         # Panel 3: map/cross-section (Persistent for now)
@@ -484,7 +499,31 @@ def run(screen, clock, fonts):
             bot_surf.blit(large_font.render("N ↑", True, (255, 100, 100)), (10, 30))
 
             # Optimize Top-down map rendering with surface caching
-            if not cached_map_valid:
+            if hover_mode == "SOLAR":
+                # Render Irradiance Map (Plasma)
+                bot_surf.blit(font.render("SOLAR IRRADIANCE MAP (Plasma)", True, (255, 255, 0)), (10, 10))
+                # Add a small randomness to make it "almost" constant but visual
+                noise = (math.sin(pygame.time.get_ticks() / 1000) * 0.05)
+                intensity = max(0, min(1.0, solar_irradiance + noise))
+                
+                # Simple Plasma approximation: 0.0 (Purple/Dark) -> 1.0 (Yellow/Bright)
+                def get_plasma(v):
+                    # v: 0.0 to 1.0
+                    if v < 0.3: return (int(13+200*v), int(8+100*v), 135) # Purple to Pink-ish
+                    elif v < 0.7: return (int(177+50*v), int(42+150*v), int(144-100*v)) # Pink to orange
+                    else: return (255, 255, int(255*(1-v)*3)) # Yellow
+                
+                plasma_col = get_plasma(intensity)
+                map_content_surf.fill(plasma_col)
+                # Overdraw panels on the irradiance map
+                for y in range(world.GRID_SIZE):
+                    for x in range(world.GRID_SIZE):
+                        if world_data[world.MAX_Z - 1][y][x] == 4:
+                            m_x_pos = y * td_tile
+                            m_y_pos = (world.GRID_SIZE - 1 - x) * td_tile
+                            pygame.draw.rect(map_content_surf, (255, 255, 255), (m_x_pos, m_y_pos, td_tile, td_tile), 2)
+                bot_surf.blit(map_content_surf, (off_x, off_y))
+            elif not cached_map_valid:
                 map_content_surf.fill((100, 150, 100)) # Base grass
                 for y in range(world.GRID_SIZE):
                     for x in range(world.GRID_SIZE):
@@ -497,8 +536,9 @@ def run(screen, clock, fonts):
                         m_y_pos = (world.GRID_SIZE - 1 - x) * td_tile
                         pygame.draw.rect(map_content_surf, color, (m_x_pos, m_y_pos, td_tile, td_tile))
                 cached_map_valid = True
-            
-            bot_surf.blit(map_content_surf, (off_x, off_y))
+                bot_surf.blit(map_content_surf, (off_x, off_y))
+            else:
+                bot_surf.blit(map_content_surf, (off_x, off_y))
 
             if is_hovering_map:
                 highlight_color = (255, 50, 50)
