@@ -12,15 +12,15 @@ BASE_TILE_W = 64
 BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
-def clean_white_background(surf, threshold=40):
-    """Replaces near-white pixels with pure white for better colorkey transparency."""
+def clean_white_background(surf, threshold=60):
+    """Surgically cleans near-white pixels using fast mask thresholding."""
     surf = surf.copy()
-    pa = pygame.PixelArray(surf)
-    for r in range(256 - threshold, 256):
-        for g in range(256 - threshold, 256):
-            for b in range(256 - threshold, 256):
-                pa.replace((r, g, b), (255, 255, 255))
-    pa.close()
+    # Identify pixels within threshold of pure white
+    mask = pygame.mask.from_threshold(surf, (255, 255, 255), (threshold, threshold, threshold))
+    # Generate a surface of pure white where those pixels are
+    white_bits = mask.to_surface(setcolor=(255, 255, 255), unsetcolor=(0, 0, 0, 0))
+    # Blit the pure white over the artifacts
+    surf.blit(white_bits, (0, 0))
     surf.set_colorkey((255, 255, 255))
     return surf
 
@@ -382,7 +382,7 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: offset_y = 180 # Extra height for monumental turbines
+                if b_id == 5: offset_y = 300 # Extremly high elevation for wind turbines
                 
                 rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(sprite, rect)
