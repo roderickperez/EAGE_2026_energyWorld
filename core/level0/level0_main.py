@@ -223,6 +223,7 @@ def run(screen, clock, fonts, save_data=None):
     while running:
         mx, my = pygame.mouse.get_pos()
         time_manager.update(1.0/60.0)
+        tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
         
         # Pre-calculate hover state for event handlers
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
@@ -388,7 +389,6 @@ def run(screen, clock, fonts, save_data=None):
                     cam_x, cam_y = px - ISO_W / 2 - wx, py - SCREEN_H / 2 - wy
                     update_sprite_cache(zoom)
 
-        tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
         screen.fill((20, 20, 20))
 
         # Environmental Data
