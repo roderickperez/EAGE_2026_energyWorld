@@ -512,24 +512,24 @@ def run(screen, clock, fonts):
                         slice_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
                         h_col = (255, 50, 50, 150)
                         if hover_mode == "INLINE":
-                            # Inline is constant Y -> Vertical on map
+                            # Inline is constant Y -> Vertical on map (iso_y -> map_x)
                             m_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
                             pygame.draw.rect(slice_surf, h_col, (m_x, off_y, td_tile, world.GRID_SIZE * td_tile))
                         else:
-                            # Xline is constant X -> Horizontal on map
+                            # Xline is constant X -> Horizontal on map (iso_x -> map_y)
                             m_y = gx_h * td_tile + off_y
                             pygame.draw.rect(slice_surf, h_col, (off_x, m_y, world.GRID_SIZE * td_tile, td_tile))
                         bot_surf.blit(slice_surf, (0, 0))
                         
-                        # Single cell highlight rotated: iso_y -> map_x (inverted), iso_x -> map_y
-                        m_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
-                        m_y = gx_h * td_tile + off_y
-                        pygame.draw.rect(bot_surf, (150, 0, 0), (m_x, m_y, td_tile, td_tile))
+                        # Draw active cell darker
+                        h_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
+                        h_y = gx_h * td_tile + off_y
+                        pygame.draw.rect(bot_surf, (150, 0, 0), (h_x, h_y, td_tile, td_tile))
                     else:
                         # Single cell highlight
-                        m_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
-                        m_y = gx_h * td_tile + off_y
-                        pygame.draw.rect(bot_surf, highlight_color, (m_x, m_y, td_tile, td_tile))
+                        h_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
+                        h_y = gx_h * td_tile + off_y
+                        pygame.draw.rect(bot_surf, highlight_color, (h_x, h_y, td_tile, td_tile))
 
         else:
             title = f"CROSS-SECTION: {selected_slice['type']} {selected_slice['index']}"
