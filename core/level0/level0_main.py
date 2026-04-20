@@ -91,8 +91,8 @@ def run(screen, clock, fonts, save_data=None):
             target_hc = 200 # Plants are substantial but not as tall as turbines
             sc = target_hc / hc
             scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
-            # Re-applying robust cleaning with a high threshold for JPG noise
-            SPRITES[6] = clean_white_background(scaled_coal, threshold=45)
+            # Surgical cleaning with lower threshold for JPG artifacts
+            SPRITES[6] = clean_white_background(scaled_coal, threshold=15)
         except Exception as e:
             print(f"Warning: Coal plant asset load failed: {e}")
 
@@ -487,7 +487,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
-                if b_id == 6: offset_y = 80 # Grounded industrial profile
+                if b_id == 6: offset_y = 30 # Grounded properly on the highlight
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
