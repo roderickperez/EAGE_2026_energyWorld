@@ -61,9 +61,9 @@ class InfoPanel:
             if num_points > 1:
                 # Layers: Coal (Base), Wind, Solar (Top)
                 layers = [
-                    ((255, 100, 100, 150), 2), # Coal: Index 2
-                    ((0, 255, 200, 180), 1),   # Wind: Index 1
-                    ((255, 255, 0, 200), 0)    # Solar: Index 0
+                    ((30, 30, 30, 150), 2),   # Coal: Black/Grey
+                    ((0, 255, 255, 180), 1),  # Wind: Cyan
+                    ((255, 255, 0, 200), 0)    # Solar: Yellow
                 ]
                 
                 for color_alpha, idx in layers:
