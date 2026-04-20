@@ -91,8 +91,9 @@ def run(screen, clock, fonts):
     cached_map_valid = False
 
     # UI Panels
-    info_panel = ui_panels.InfoPanel(ISO_W // 5, SCREEN_H // 5, ISO_W // 2, SCREEN_H // 2, font)
-    chat_panel = ui_panels.ChatPanel(ISO_W + 10, 10, PANEL_W - 20, PANEL_H - 20, font)
+    panel_rect = (ISO_W + 10, 10, PANEL_W - 20, PANEL_H - 20)
+    info_panel = ui_panels.InfoPanel(*panel_rect, font)
+    chat_panel = ui_panels.ChatPanel(*panel_rect, font)
     show_info_panel = True
     show_chat_panel = False
 
