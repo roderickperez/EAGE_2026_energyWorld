@@ -1,0 +1,547 @@
+import sys
+import os
+import math
+import pygame
+import level0.level0_world as world
+import time_system
+import ui_panels
+
+# Layout constants (shared logic)
+BASE_TILE_W = 64
+BASE_TILE_H = 32
+BLOCK_Z_STEP = 32
+
+def run(screen, clock, fonts):
+    font, large_font, huge_font = fonts
+    SCREEN_W, SCREEN_H = screen.get_size()
+    ISO_W = int(SCREEN_W * 0.80)
+    PANEL_W = SCREEN_W - ISO_W
+    PANEL_H = SCREEN_H // 2
+
+    time_manager = time_system.TimeManager(time_scale=30000) # 30,000x scale
+
+    # Sprites and Cache
+    SPRITES = {}
+    SCALED_SPRITES = {}
+
+    try:
+        SPRITES[1] = pygame.image.load("assests/basicTopSprite.png").convert_alpha()
+        SPRITES[2] = pygame.image.load("assests/deepSprite.png").convert_alpha()
+        try:
+            SPRITES[3] = pygame.image.load("assests/road1.png").convert_alpha()
+            SPRITES[3].set_colorkey((255, 255, 255))
+        except: pass
+        try:
+            SPRITES[4] = pygame.image.load("assests/solarPanel_64x32.png").convert_alpha()
+        except: pass
+        try:
+            SPRITES[5] = pygame.image.load("assests/windTurbine.png").convert_alpha()
+        except: pass
+
+        # New: Dynamically load road variants from assests/road/
+        ROAD_VARIANTS = {} # id -> filename
+        road_id_list = []
+        road_folder = "assests/road"
+        if os.path.exists(road_folder):
+            next_road_id = 100
+            for f in sorted(os.listdir(road_folder)):
+                if f.lower().endswith(".png"):
+                    try:
+                        path = os.path.join(road_folder, f)
+                        sprite = pygame.image.load(path).convert_alpha()
+                        # Apply colorkey for road sprites (white background)
+                        sprite.set_colorkey((255, 255, 255))
+                        
+                        SPRITES[next_road_id] = sprite
+                        ROAD_VARIANTS[next_road_id] = f
+                        road_id_list.append(next_road_id)
+                        next_road_id += 1
+                    except Exception as e:
+                        print(f"Error loading road sprite {f}: {e}")
+        
+        # Fallback if no roads found in subfolder
+        if not road_id_list and 3 in SPRITES:
+            road_id_list = [3]
+            ROAD_VARIANTS[3] = "road1.png"
+    except FileNotFoundError as e:
+        print(f"Warning: Sprites missing ({e}). Game will render colored polygons instead.")
+
+    def update_sprite_cache(zoom_level: float):
+        nonlocal SCALED_SPRITES
+        tile_w = BASE_TILE_W * zoom_level
+        SCALED_SPRITES = {}
+        for b_id, sprite in SPRITES.items():
+            scale_w = int(tile_w)
+            scale_h = int(scale_w * (sprite.get_height() / sprite.get_width()))
+            SCALED_SPRITES[b_id] = pygame.transform.scale(sprite, (scale_w + 1, scale_h + 1))
+
+    # World data
+    print("Generating Level 0 world...")
+    world_data = world.generate_world()
+    render_list = world.calculate_visible_blocks(world_data)
+    
+    # Interaction state
+    hover_mode = "CELL"
+    selected_slice = None
+    selected_road_idx = 0
+
+    # Performance: Map Caching
+    td_tile = max(1, min(PANEL_W // world.GRID_SIZE, (PANEL_H - 40) // world.GRID_SIZE))
+    map_content_surf = pygame.Surface((world.GRID_SIZE * td_tile, world.GRID_SIZE * td_tile))
+    cached_map_valid = False
+
+    # UI Panels
+    info_panel = ui_panels.InfoPanel(ISO_W + 10, 10, PANEL_W - 20, PANEL_H - 20, font)
+    chat_panel = ui_panels.ChatPanel(ISO_W // 4, SCREEN_H // 4, ISO_W // 2, SCREEN_H // 2, font)
+    show_info_panel = True
+    show_chat_panel = False
+
+    def display_grid_coords(x: int, y: int) -> tuple[int, int]:
+        return world.GRID_SIZE - 1 - x, world.GRID_SIZE - 1 - y
+
+    def render_sort_key(block: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+        z, y, x, _ = block
+        dx, dy = display_grid_coords(x, y)
+        return (dx + dy, z, dy, dx)
+
+    def grid_to_iso_3d(x: int, y: int, z: int, tile_w: float, tile_h: float) -> tuple[float, float]:
+        dx, dy = display_grid_coords(x, y)
+        px = (dx - dy) * (tile_w / 2)
+        py = (dx + dy) * (tile_h / 2) - (z * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
+        return px, py
+
+    def screen_to_iso_grid(sx: int, sy: int, tile_w: float, tile_h: float,
+                           cam_x: float, cam_y: float) -> tuple[int, int]:
+        iso_x = sx - ISO_W / 2 - cam_x
+        iso_y = sy - SCREEN_H / 2 - cam_y + ((world.MAX_Z - 1) * BLOCK_Z_STEP * (tile_w / BASE_TILE_W))
+        dx = (iso_y / (tile_h / 2) + iso_x / (tile_w / 2)) / 2
+        dy = (iso_y / (tile_h / 2) - iso_x / (tile_w / 2)) / 2
+        gx = world.GRID_SIZE - 1 - math.floor(dx)
+        gy = world.GRID_SIZE - 1 - math.floor(dy)
+        return gx, gy
+
+    def block_is_highlighted(x: int, y: int, z: int, hx: int, hy: int) -> bool:
+        if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND"):
+            return z == world.MAX_Z - 1 and x == hx and y == hy
+        if hover_mode == "INLINE":
+            return y == hy
+        if hover_mode == "XLINE":
+            return x == hx
+        return False
+
+    def get_fit_zoom() -> float:
+        grid_pixel_w = world.GRID_SIZE * BASE_TILE_W
+        fit_zoom = min(ISO_W / grid_pixel_w, SCREEN_H / grid_pixel_w)
+        return fit_zoom * 0.92
+
+    def get_start_camera(tile_w: float, tile_h: float) -> tuple[float, float]:
+        top_y = grid_to_iso_3d(0, 0, world.MAX_Z - 1, tile_w, tile_h)[1]
+        bot_y = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, tile_w, tile_h)[1]
+        return 0, -((top__y := top_y) + bot_y) / 2 # Using Walrus just because
+
+    render_list.sort(key=render_sort_key)
+    MIN_ZOOM = get_fit_zoom()
+    zoom = MIN_ZOOM
+    update_sprite_cache(zoom)
+    # Corrected target name for walrus used above
+    top_y_start = grid_to_iso_3d(0, 0, world.MAX_Z - 1, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    bot_y_start = grid_to_iso_3d(world.GRID_SIZE - 1, world.GRID_SIZE - 1, 0, BASE_TILE_W * zoom, BASE_TILE_H * zoom)[1]
+    cam_x, cam_y = 0, -((top_y_start + bot_y_start) / 2)
+    dragging = False
+
+    running = True
+    while running:
+        mx, my = pygame.mouse.get_pos()
+        time_manager.update(1.0/60.0)
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "QUIT"
+
+            if event.type == pygame.KEYDOWN:
+                if show_chat_panel and chat_panel.active:
+                    if event.key == pygame.K_ESCAPE:
+                        chat_panel.active = False
+                    elif event.key == pygame.K_RETURN:
+                        if chat_panel.input_text.strip():
+                            chat_panel.add_message("User", chat_panel.input_text)
+                            chat_panel.input_text = ""
+                            chat_panel.add_message("AI", "Processing energy request...")
+                    elif event.key == pygame.K_BACKSPACE:
+                        chat_panel.input_text = chat_panel.input_text[:-1]
+                    else:
+                        chat_panel.input_text += event.unicode
+                    continue
+
+                if event.key == pygame.K_ESCAPE:
+                    return "MENU"
+                elif event.key == pygame.K_c:
+                    hover_mode = "CELL"
+                    selected_slice = None
+                elif event.key == pygame.K_i:
+                    show_info_panel = not show_info_panel
+                elif event.key == pygame.K_a:
+                    show_chat_panel = not show_chat_panel
+                    if show_chat_panel:
+                        chat_panel.active = True
+                        show_info_panel = False
+                elif event.key == pygame.K_x:
+                    hover_mode = "XLINE"
+                elif event.key == pygame.K_r:
+                    if hover_mode == "ROAD" and road_id_list:
+                        selected_road_idx = (selected_road_idx + 1) % len(road_id_list)
+                    else:
+                        hover_mode = "ROAD"
+                    selected_slice = None
+                elif event.key == pygame.K_s:
+                    hover_mode = "SOLAR"
+                    selected_slice = None
+                elif event.key == pygame.K_w:
+                    hover_mode = "WIND"
+                    selected_slice = None
+                elif event.key == pygame.K_t:
+                    hover_mode = "INLINE"
+                    selected_slice = None
+                elif event.key == pygame.K_RETURN:
+                    # Alternative placement trigger
+                    if is_hovering_map and hover_mode in ("ROAD", "SOLAR", "WIND"):
+                        # Re-use logic from mouse click
+                        bid = 3
+                        if hover_mode == "ROAD" and road_id_list:
+                            bid = road_id_list[selected_road_idx]
+                        elif hover_mode == "SOLAR": bid = 4
+                        elif hover_mode == "WIND": bid = 5
+                        
+                        world_data[world.MAX_Z - 1][gy_h][gx_h] = bid
+                        for i, (z, y, x, b_id) in enumerate(render_list):
+                            if z == world.MAX_Z - 1 and y == gy_h and x == gx_h:
+                                render_list[i] = (z, y, x, bid)
+                                break
+                        cached_map_valid = False
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2 and event.pos[0] < ISO_W:
+                dragging = True
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 2:
+                dragging = False
+            if event.type == pygame.MOUSEMOTION and dragging:
+                cam_x += event.rel[0]
+                cam_y += event.rel[1]
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and event.pos[0] < ISO_W:
+                gx, gy = screen_to_iso_grid(event.pos[0], event.pos[1], BASE_TILE_W * zoom, BASE_TILE_H * zoom, cam_x, cam_y)
+                if 0 <= gx < world.GRID_SIZE and 0 <= gy < world.GRID_SIZE:
+                    if hover_mode == "INLINE":
+                        selected_slice = {"type": "INLINE", "index": gy}
+                    elif hover_mode == "XLINE":
+                        selected_slice = {"type": "XLINE", "index": gx}
+                    elif hover_mode in ("ROAD", "SOLAR", "WIND"):
+                        # Map mode to block ID
+                        bid = 3
+                        if hover_mode == "ROAD" and road_id_list:
+                            bid = road_id_list[selected_road_idx]
+                        elif hover_mode == "SOLAR": bid = 4
+                        elif hover_mode == "WIND": bid = 5
+                        
+                        world_data[world.MAX_Z - 1][gy][gx] = bid
+                        # Update render_list in place to avoid full recalculation
+                        for i, (z, y, x, b_id) in enumerate(render_list):
+                            if z == world.MAX_Z - 1 and y == gy and x == gx:
+                                render_list[i] = (z, y, x, bid)
+                                break
+                        # Request map update
+                        cached_map_valid = False
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0] < ISO_W and event.button in (4, 5):
+                prev_zoom = zoom
+                zoom = min(2.5, zoom * 1.1) if event.button == 4 else max(MIN_ZOOM, zoom / 1.1)
+
+                px, py = event.pos
+                wx, wy = px - ISO_W / 2 - cam_x, py - SCREEN_H / 2 - cam_y
+                if prev_zoom != 0:
+                    wx *= (zoom / prev_zoom)
+                    wy *= (zoom / prev_zoom)
+                    cam_x, cam_y = px - ISO_W / 2 - wx, py - SCREEN_H / 2 - wy
+                    update_sprite_cache(zoom)
+
+        tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
+        screen.fill((20, 20, 20))
+
+        gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
+        is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
+
+        # Panel 1: Isometric
+        iso_surf = pygame.Surface((ISO_W, SCREEN_H))
+        iso_surf.fill((30, 30, 30))
+
+        # North marker flipped to match flipped isometric orientation
+        pygame.draw.line(iso_surf, (255, 100, 100), (50, 70), (80, 100), 3)
+        pygame.draw.polygon(iso_surf, (255, 100, 100), [(80, 100), (70, 100), (80, 90)])
+        iso_surf.blit(large_font.render("N", True, (255, 100, 100)), (35, 50))
+
+        # Use selected slice as source-of-truth for line modes when available.
+        active_hx, active_hy = gx_h, gy_h
+        if selected_slice is not None:
+            if selected_slice["type"] == "INLINE":
+                active_hy = selected_slice["index"]
+            elif selected_slice["type"] == "XLINE":
+                active_hx = selected_slice["index"]
+
+        # Pass 1: draw full map and highlights (merged to respect depth)
+        for z, y, x, b_id in render_list:
+            ix, iy = grid_to_iso_3d(x, y, z, tile_w, tile_h)
+            cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
+
+            # Frustum culling: skip drawing if clearly off-screen
+            if cx < -tile_w or cx > ISO_W + tile_w or cy < -tile_h or cy > SCREEN_H + tile_h:
+                continue
+
+            # Cube vertex points
+            t = (cx, cy - tile_h / 2)
+            r = (cx + tile_w / 2, cy)
+            b = (cx, cy + tile_h / 2)
+            l = (cx - tile_w / 2, cy)
+            
+            # Bottom vertex points for sides (32px drop)
+            rc = (r[0], r[1] + 32)
+            bc = (b[0], b[1] + 32)
+            lc = (l[0], l[1] + 32)
+
+            sprite = SCALED_SPRITES.get(b_id)
+            if sprite:
+                # If it's a building or road ID (4, 5, 100+), render sides
+                if b_id >= 4:
+                    # Draw sides
+                    pygame.draw.polygon(iso_surf, (140, 100, 60), [l, b, bc, lc]) # Front-left
+                    pygame.draw.polygon(iso_surf, (110, 80, 40), [r, b, bc, rc])  # Front-right
+                    # Draw top (usually covered by sprite, but good for safety)
+                    pygame.draw.polygon(iso_surf, (100, 150, 100), [t, r, b, l])
+                
+                offset_y = 0
+                if b_id == 4: offset_y = 4 # Solar Panel move up 4 pixels
+                
+                rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
+                iso_surf.blit(sprite, rect)
+                
+                # Apply highlight tint if applicable
+                if is_hovering_map and block_is_highlighted(x, y, z, active_hx, active_hy):
+                    if hover_mode in ("INLINE", "XLINE"):
+                        mask = pygame.mask.from_surface(sprite)
+                        red_surf = mask.to_surface(setcolor=(255, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
+                        red_surf.set_alpha(170)
+                        iso_surf.blit(red_surf, rect)
+            else:
+                poly_col = (100, 150, 100)
+                if b_id == 2: poly_col = (150, 100, 50)
+                elif b_id == 3: poly_col = (120, 120, 120)
+                elif b_id == 4: poly_col = (255, 255, 0) # Solar Yellow
+                elif b_id == 5: poly_col = (0, 255, 255) # Wind Cyan
+                
+                # Draw standard cube
+                pygame.draw.polygon(iso_surf, poly_col, [t, r, b, l])
+                pygame.draw.polygon(iso_surf, (140, 100, 60), [l, b, bc, lc]) # Side L
+                pygame.draw.polygon(iso_surf, (110, 80, 40), [r, b, bc, rc])  # Side R
+
+        # Apply Lighting Tint to Isometric View BEFORE UI/Highlights
+        tint = time_manager.get_lighting_tint()
+        if tint != (255, 255, 255):
+            lighting_overlay = pygame.Surface((ISO_W, SCREEN_H))
+            lighting_overlay.fill(tint)
+            iso_surf.blit(lighting_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+        # Pass 2: Highlights (Not tinted, making them luminous at night)
+        if is_hovering_map:
+            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND"):
+                # Optimize: Direct drawing for single cell modes
+                ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
+                cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
+                
+                t_f = (cx, cy - tile_h / 2)
+                r_f = (cx + tile_w / 2, cy)
+                b_f = (cx, cy + tile_h / 2)
+                l_f = (cx - tile_w / 2, cy)
+                
+                if hover_mode == "ROAD":
+                    rid = road_id_list[selected_road_idx] if road_id_list else 3
+                    spr = SCALED_SPRITES.get(rid)
+                    if spr:
+                        rect = spr.get_rect(centerx=int(cx), top=int(cy - tile_h / 2))
+                        iso_surf.blit(spr, rect)
+                    else:
+                        pygame.draw.polygon(iso_surf, (120, 120, 120), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (200, 200, 200), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "SOLAR":
+                    pygame.draw.polygon(iso_surf, (255, 255, 0), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 255, 200), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "WIND":
+                    pygame.draw.polygon(iso_surf, (0, 255, 255), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (200, 255, 255), [t_f, r_f, b_f, l_f], 2)
+                else: # CELL
+                    pygame.draw.polygon(iso_surf, (255, 50, 50), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 2)
+            else:
+                # Traditional loop for volumetric highlights (Line modes)
+                z_step = BLOCK_Z_STEP * (tile_w / BASE_TILE_W)
+                for z, y, x, b_id in render_list:
+                    if block_is_highlighted(x, y, z, active_hx, active_hy):
+                        ix, iy = grid_to_iso_3d(x, y, z, tile_w, tile_h)
+                        cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
+                        if cx < -tile_w or cx > ISO_W + tile_w or cy < -tile_h or cy > SCREEN_H + tile_h:
+                            continue
+                        
+                        t_f, r_f, b_f, l_f = (cx, cy - tile_h / 2), (cx + tile_w / 2, cy), (cx, cy + tile_h / 2), (cx - tile_w / 2, cy)
+                        
+                        # Only highlight faces that are actually visible (exposed)
+                        # Top Face
+                        if z == world.MAX_Z - 1 or world_data[z+1][y][x] == 0:
+                            col = (255, 50, 50)
+                            # Darker red for current cell
+                            if x == active_hx and y == active_hy and z == world.MAX_Z - 1:
+                                col = (150, 0, 0)
+                            pygame.draw.polygon(iso_surf, col, [t_f, r_f, b_f, l_f])
+                            pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 1)
+                        
+                        # Front-Left Side Face
+                        if y == 0 or world_data[z][y-1][x] == 0:
+                            col = (200, 40, 40)
+                            if x == active_hx and y == active_hy: col = (120, 0, 0)
+                            l_f_d = (l_f[0], l_f[1] + z_step)
+                            b_f_d = (b_f[0], b_f[1] + z_step)
+                            pygame.draw.polygon(iso_surf, col, [l_f, b_f, b_f_d, l_f_d])
+                            pygame.draw.polygon(iso_surf, (255, 255, 255), [l_f, b_f, b_f_d, l_f_d], 1)
+
+                        # Front-Right Side Face
+                        if x == 0 or world_data[z][y][x-1] == 0:
+                            col = (180, 30, 30)
+                            if x == active_hx and y == active_hy: col = (100, 0, 0)
+                            r_f_d = (r_f[0], r_f[1] + z_step)
+                            b_f_d = (b_f[0], b_f[1] + z_step)
+                            pygame.draw.polygon(iso_surf, col, [r_f, b_f, b_f_d, r_f_d])
+                            pygame.draw.polygon(iso_surf, (255, 255, 255), [r_f, b_f, b_f_d, r_f_d], 1)
+
+
+        # UI Overlay (Not tinted)
+        iso_surf.blit(font.render("3D ISOMETRIC VIEW", True, (180, 180, 180)), (10, 10))
+        m_txt = f"Mode: {hover_mode}"
+        if hover_mode == "ROAD" and road_id_list:
+            m_txt += f" ({ROAD_VARIANTS[road_id_list[selected_road_idx]]})"
+        iso_surf.blit(font.render(f"{m_txt} (Press R, S, W, I, X, C)", True, (255, 200, 100)), (10, 28))
+        
+        # Level 0 label
+        lvl0_surf = huge_font.render("Level 0", True, (255, 255, 255))
+        lvl0_surf.set_alpha(80)
+        iso_surf.blit(lvl0_surf, (20, SCREEN_H - 60))
+
+        # Time UI
+        time_str = time_manager.get_time_string()
+        time_surf = large_font.render(time_str, True, (255, 255, 255))
+        time_rect = time_surf.get_rect(topright=(ISO_W - 20, 20))
+        iso_surf.blit(time_surf, time_rect)
+        
+        screen.blit(iso_surf, (0, 0))
+
+        # Right Hand UI Panels
+        if show_info_panel:
+            g_info = {
+                "Grid": f"{world.GRID_SIZE}x{world.GRID_SIZE}x{world.MAX_Z}",
+                "Hover": f"({active_hx}, {active_hy})",
+                "Date": date_str,
+                "Time": time_str
+            }
+            controls = [
+                "[C] - Cell Selection",
+                "[T] - Inline Selection",
+                "[X] - Xline Selection",
+                "[R] - Road (Cycle variants)",
+                "[S] - Solar Mode",
+                "[W] - Wind Mode",
+                "[I] - Toggle Info Panel",
+                "[A] - Toggle AI Chat",
+                "L Click - Select/Place",
+                "MMB - Pan Camera",
+                "Wheel - Zoom",
+                "ESC - Back to Menu"
+            ]
+            info_panel.draw(screen, g_info, controls)
+
+        if show_chat_panel:
+            chat_panel.draw(screen)
+
+        # Panel 3: map/cross-section (Persistent for now)
+        bot_surf = pygame.Surface((PANEL_W, PANEL_H))
+        bot_surf.fill((30, 30, 30))
+        pygame.draw.rect(bot_surf, (80, 120, 80), (0, 0, PANEL_W, PANEL_H), 2)
+
+        if selected_slice is None:
+            bot_surf.blit(font.render("TOP-DOWN MAP (Centered)", True, (180, 180, 180)), (10, 10))
+            # td_tile already calculated at startup
+            off_x = (PANEL_W - (world.GRID_SIZE * td_tile)) // 2
+            off_y = (PANEL_H - (world.GRID_SIZE * td_tile)) // 2 + 10
+            bot_surf.blit(large_font.render("N ↑", True, (255, 100, 100)), (10, 30))
+
+            # Optimize Top-down map rendering with surface caching
+            if not cached_map_valid:
+                map_content_surf.fill((100, 150, 100)) # Base grass
+                for y in range(world.GRID_SIZE):
+                    for x in range(world.GRID_SIZE):
+                        bid_top = world_data[world.MAX_Z - 1][y][x]
+                        if bid_top == 1: continue # Grass is base
+                        color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
+                        pygame.draw.rect(map_content_surf, color, (x * td_tile, y * td_tile, td_tile, td_tile))
+                cached_map_valid = True
+            
+            bot_surf.blit(map_content_surf, (off_x, off_y))
+
+            if is_hovering_map:
+                highlight_color = (255, 50, 50)
+                if hover_mode == "SOLAR": highlight_color = (255, 255, 0)
+                elif hover_mode == "WIND": highlight_color = (0, 255, 255)
+                elif hover_mode == "ROAD": highlight_color = (120, 120, 120)
+                
+                # Draw hover on top of cached map
+                if gx_h < world.GRID_SIZE and gy_h < world.GRID_SIZE:
+                    if hover_mode in ("INLINE", "XLINE"):
+                        # Semi-transparent slice highlight
+                        slice_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
+                        h_col = (255, 50, 50, 150)
+                        if hover_mode == "INLINE":
+                            pygame.draw.rect(slice_surf, h_col, (off_x, gy_h * td_tile + off_y, world.GRID_SIZE * td_tile, td_tile))
+                        else:
+                            pygame.draw.rect(slice_surf, h_col, (gx_h * td_tile + off_x, off_y, td_tile, world.GRID_SIZE * td_tile))
+                        bot_surf.blit(slice_surf, (0, 0))
+                        
+                        # Draw active cell darker
+                        pygame.draw.rect(bot_surf, (150, 0, 0), (gx_h * td_tile + off_x, gy_h * td_tile + off_y, td_tile, td_tile))
+                    else:
+                        # Single cell highlight
+                        pygame.draw.rect(bot_surf, highlight_color, (gx_h * td_tile + off_x, gy_h * td_tile + off_y, td_tile, td_tile))
+
+        else:
+            title = f"CROSS-SECTION: {selected_slice['type']} {selected_slice['index']}"
+            bot_surf.blit(font.render(title, True, (255, 200, 100)), (10, 10))
+            cs_w = max(1, PANEL_W // world.GRID_SIZE)
+            cs_h = max(1, (PANEL_H - 60) // world.MAX_Z)
+            cs_off_x = (PANEL_W - (world.GRID_SIZE * cs_w)) // 2
+            cs_off_y = (PANEL_H - (world.MAX_Z * cs_h)) // 2 + 20
+
+            for z in range(world.MAX_Z):
+                for i in range(world.GRID_SIZE):
+                    x = i if selected_slice["type"] == "INLINE" else selected_slice["index"]
+                    y = selected_slice["index"] if selected_slice["type"] == "INLINE" else i
+                    block_id = world_data[z][y][x]
+                    color = (150, 100, 50) # Brown for all layers in cross-section
+                    if block_id == 3: color = (120, 120, 120) # Grey for road
+                    elif block_id == 4: color = (255, 255, 0) # Yellow for solar
+                    elif block_id == 5: color = (0, 255, 255) # Cyan for wind
+                    screen_z = (world.MAX_Z - 1) - z
+                    rect = (i * cs_w + cs_off_x, screen_z * cs_h + cs_off_y, cs_w, cs_h)
+                    pygame.draw.rect(bot_surf, color, rect)
+
+
+        screen.blit(bot_surf, (ISO_W, PANEL_H))
+        pygame.draw.line(screen, (60, 60, 60), (ISO_W, 0), (ISO_W, SCREEN_H), 2)
+        pygame.draw.line(screen, (60, 60, 60), (ISO_W, PANEL_H), (SCREEN_W, PANEL_H), 2)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    return "MENU"
