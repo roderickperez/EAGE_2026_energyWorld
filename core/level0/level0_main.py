@@ -38,8 +38,9 @@ def run(screen, clock, fonts, save_data=None):
         except: pass
         try:
             SPRITES[5] = pygame.image.load("assests/windTurbine_whiteBackground.png").convert()
-            # Apply white colorkey transparency as requested
-            SPRITES[5].set_colorkey((255, 255, 255))
+            # Sample top-left for perfect transparency as requested
+            colorkey = SPRITES[5].get_at((0, 0))
+            SPRITES[5].set_colorkey(colorkey)
         except: pass
 
         # New: Dynamically load road variants from assests/road/
@@ -369,7 +370,7 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: offset_y = 20 # Slight lift for wind turbine base if needed
+                if b_id == 5: offset_y = 120 # Way way up at the top
                 
                 rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(sprite, rect)
