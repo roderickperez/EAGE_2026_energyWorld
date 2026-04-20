@@ -469,6 +469,12 @@ def run(screen, clock, fonts, save_data=None):
         solar_dashboard.update(solar_irradiance, installed_panels)
         wind_dashboard.update(total_production if hover_mode == "WIND" else 0, installed_turbines)
         
+        # Coal Dashboard Statistics
+        num_coal = sum(row.count(6) for row in world_data[world.MAX_Z-1])
+        total_coal_prod = num_coal * 500.0
+        total_contam = num_coal * 100.0
+        coal_dashboard.update(total_coal_prod, total_contam)
+        
         # Calculate Dynamic Demand and Tax Income
         num_houses = sum(row.count(10) for row in world_data[world.MAX_Z-1])
         num_offices = sum(row.count(11) for row in world_data[world.MAX_Z-1])
