@@ -480,7 +480,7 @@ def run(screen, clock, fonts):
             # td_tile already calculated at startup
             off_x = (PANEL_W - (world.GRID_SIZE * td_tile)) // 2
             off_y = (PANEL_H - (world.GRID_SIZE * td_tile)) // 2 + 10
-            bot_surf.blit(large_font.render("N ↙", True, (255, 100, 100)), (10, 30))
+            bot_surf.blit(large_font.render("N ↑", True, (255, 100, 100)), (10, 30))
 
             # Optimize Top-down map rendering with surface caching
             if not cached_map_valid:
@@ -513,7 +513,11 @@ def run(screen, clock, fonts):
                             pygame.draw.rect(slice_surf, h_col, (gx_h * td_tile + off_x, off_y, td_tile, world.GRID_SIZE * td_tile))
                         bot_surf.blit(slice_surf, (0, 0))
                         
-                        # Adjust Y for inverted map
+                        # Draw active cell darker (South=Bottom alignment)
+                        m_y = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_y
+                        pygame.draw.rect(bot_surf, (150, 0, 0), (gx_h * td_tile + off_x, m_y, td_tile, td_tile))
+                    else:
+                        # Single cell highlight
                         m_y = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_y
                         pygame.draw.rect(bot_surf, highlight_color, (gx_h * td_tile + off_x, m_y, td_tile, td_tile))
 
