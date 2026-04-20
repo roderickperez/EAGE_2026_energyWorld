@@ -76,6 +76,23 @@ class TimeManager:
         val = 90 * (1 - abs(hour - 12) / 6)
         return max(-90, val)
 
+    def get_wind_speed(self):
+        """Returns global wind speed in m/s (5.0 to 22.0) varying over time."""
+        import math
+        # Total days since start to create a continuous weather pattern
+        days = (self.current_date - datetime.datetime(2000,1,1)).total_seconds() / 86400.0
+        # Mix of sines for noise
+        wave1 = math.sin(days * 2.0 * math.pi) * 5.0  # Daily cycle component
+        wave2 = math.sin(days * 0.3 * math.pi) * 4.0  # Multi-day weather pattern
+        return max(3.0, 12.0 + wave1 + wave2)
+
+    def get_wind_direction(self):
+        """Returns global wind direction in degrees (0 to 360)."""
+        import math
+        days = (self.current_date - datetime.datetime(2000,1,1)).total_seconds() / 86400.0
+        # Slowly wandering direction based on days
+        return (45 + math.sin(days * 0.5 * math.pi) * 120) % 360
+
     def _interpolate(self, col1, col2, t):
         r = int(col1[0] + (col2[0] - col1[0]) * t)
         g = int(col1[1] + (col2[1] - col1[1]) * t)

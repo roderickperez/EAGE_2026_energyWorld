@@ -140,6 +140,7 @@ def run(screen, clock, fonts, save_data=None):
     info_panel = ui_panels.InfoPanel(*panel_rect, font)
     chat_panel = ui_panels.ChatPanel(*panel_rect, font)
     solar_dashboard = ui_panels.SolarDashboard(*panel_rect, font)
+    wind_dashboard = ui_panels.WindDashboard(*panel_rect, font)
     show_info_panel = True
     show_chat_panel = False
 
@@ -299,7 +300,9 @@ def run(screen, clock, fonts, save_data=None):
                         elif hover_mode == "SOLAR": 
                             bid = 4
                             cost = 10000
-                        elif hover_mode == "WIND": bid = 5
+                        elif hover_mode == "WIND": 
+                            bid = 5
+                            cost = 100000
                         
                         if balance >= cost:
                             balance -= cost
@@ -331,10 +334,15 @@ def run(screen, clock, fonts, save_data=None):
         tile_w, tile_h = BASE_TILE_W * zoom, BASE_TILE_H * zoom
         screen.fill((20, 20, 20))
 
-        # Solar State Update
+        # Environmental Data
         solar_irradiance = time_manager.get_solar_irradiance()
+        wind_speed = time_manager.get_wind_speed()
+        wind_dir = time_manager.get_wind_direction()
+        
         installed_panels = []
+        installed_turbines = []
         total_production = 0.0
+        
         for y in range(world.GRID_SIZE):
             for x in range(world.GRID_SIZE):
                 bid = world_data[world.MAX_Z - 1][y][x]
@@ -343,10 +351,14 @@ def run(screen, clock, fonts, save_data=None):
                     installed_panels.append((x, y, prod))
                     total_production += prod
                 elif bid == 5: # Wind
-                    # Assume constant or wind-scaled production
-                    total_production += 50.0 
+                    # Production model: starts at 3m/s, max at 15m/s
+                    eff = max(0, min(1.0, (wind_speed - 3) / 12.0))
+                    prod = eff * 200.0 # Turbines are more powerful than panels
+                    installed_turbines.append((x, y, prod, wind_speed))
+                    total_production += prod
         
         solar_dashboard.update(solar_irradiance, installed_panels)
+        wind_dashboard.update(total_production if hover_mode == "WIND" else 0, installed_turbines)
         info_panel.energy_history.append(total_production)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
@@ -531,6 +543,8 @@ def run(screen, clock, fonts, save_data=None):
         # Right Hand UI Panels
         if hover_mode == "SOLAR":
             solar_dashboard.draw(screen)
+        elif hover_mode == "WIND":
+            wind_dashboard.draw(screen)
         elif show_info_panel:
             g_info = {
                 "Grid": f"{world.GRID_SIZE}x{world.GRID_SIZE}x{world.MAX_Z}",
@@ -591,9 +605,34 @@ def run(screen, clock, fonts, save_data=None):
                 for y in range(world.GRID_SIZE):
                     for x in range(world.GRID_SIZE):
                         if world_data[world.MAX_Z - 1][y][x] == 4:
+                            # 90-degree rotated map alignment
                             m_x_pos = y * td_tile
                             m_y_pos = (world.GRID_SIZE - 1 - x) * td_tile
                             pygame.draw.rect(map_content_surf, (255, 255, 255), (m_x_pos, m_y_pos, td_tile, td_tile), 2)
+                bot_surf.blit(map_content_surf, (off_x, off_y))
+            elif hover_mode == "WIND":
+                bot_surf.blit(font.render("WIND VELOCITY MAP (Intensity + Vectors)", True, (0, 255, 255)), (10, 10))
+                # Intensity purely based on global wind speed for now
+                norm_speed = min(1.0, wind_speed / 20.0)
+                int_val = int(40 + 120 * norm_speed)
+                map_content_surf.fill((20, int_val, int_val // 2)) # Bluish-green intensity
+                
+                # Draw vectors (arrows) per grid cell
+                for y in range(world.GRID_SIZE):
+                    for x in range(world.GRID_SIZE):
+                        # 90-degree rotated map coordinates
+                        mc_x = y * td_tile + td_tile // 2
+                        mc_y = (world.GRID_SIZE - 1 - x) * td_tile + td_tile // 2
+                        
+                        # Arrow pointing to wind_dir
+                        # Adjust for 90-deg rotation: Map X is Iso Y, Map Y is Iso -X
+                        rad = math.radians(wind_dir - 180) # Angle tweak for rotated map view
+                        lv = 10 * norm_speed + 2
+                        ex = mc_x + math.cos(rad) * lv
+                        ey = mc_y + math.sin(rad) * lv
+                        pygame.draw.line(map_content_surf, (200, 255, 255), (mc_x, mc_y), (ex, ey), 1)
+                        pygame.draw.circle(map_content_surf, (200, 255, 255), (int(ex), int(ey)), 2)
+                
                 bot_surf.blit(map_content_surf, (off_x, off_y))
             elif not cached_map_valid:
                 map_content_surf.fill((100, 150, 100)) # Base grass
