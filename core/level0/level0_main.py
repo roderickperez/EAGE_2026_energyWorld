@@ -12,6 +12,18 @@ BASE_TILE_W = 64
 BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
+def clean_white_background(surf, threshold=40):
+    """Replaces near-white pixels with pure white for better colorkey transparency."""
+    surf = surf.copy()
+    pa = pygame.PixelArray(surf)
+    for r in range(256 - threshold, 256):
+        for g in range(256 - threshold, 256):
+            for b in range(256 - threshold, 256):
+                pa.replace((r, g, b), (255, 255, 255))
+    pa.close()
+    surf.set_colorkey((255, 255, 255))
+    return surf
+
 def run(screen, clock, fonts, save_data=None):
     font, large_font, huge_font = fonts
     SCREEN_W, SCREEN_H = screen.get_size()
@@ -38,10 +50,10 @@ def run(screen, clock, fonts, save_data=None):
         except: pass
         try:
             SPRITES[5] = pygame.image.load("assests/windTurbine_whiteBackground.png").convert()
-            # Sample top-left for perfect transparency as requested
-            colorkey = SPRITES[5].get_at((0, 0))
-            SPRITES[5].set_colorkey(colorkey)
-        except: pass
+            # Clean artifacts before setting colorkey
+            SPRITES[5] = clean_white_background(SPRITES[5])
+        except Exception as e:
+            print(f"Warning: windTurbine_whiteBackground.png clean failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
@@ -370,7 +382,7 @@ def run(screen, clock, fonts, save_data=None):
                 
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
-                if b_id == 5: offset_y = 120 # Way way up at the top
+                if b_id == 5: offset_y = 180 # Extra height for monumental turbines
                 
                 rect = sprite.get_rect(centerx=int(cx), top=int(cy - tile_h / 2 - offset_y))
                 iso_surf.blit(sprite, rect)
