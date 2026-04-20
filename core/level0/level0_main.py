@@ -13,24 +13,30 @@ BASE_TILE_H = 32
 BLOCK_Z_STEP = 32
 
 def clean_white_background(surf, threshold=20):
-    """Surgically cleans ONLY the external background using connectivity."""
-    surf = surf.copy()
+    """Surgically cleans ONLY the external background using per-pixel alpha."""
+    surf = surf.convert_alpha()
     w, h = surf.get_size()
     # Mask of all pixels near white
-    near_white = pygame.mask.from_threshold(surf, (255, 255, 255), (threshold, threshold, threshold))
+    near_white = pygame.mask.from_threshold(surf, (255, 255, 255), (threshold, threshold, threshold, 255))
     
     # Isolate the background component (connected to the corners)
     bg_mask = pygame.mask.Mask((w, h))
     for corner in [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]:
         if near_white.get_at(corner):
-            # Find the component connected to this corner
             comp = near_white.connected_component(corner)
             bg_mask.draw(comp, (0, 0))
             
-    # Draw pure white only onto the identified background
-    white_bg = bg_mask.to_surface(setcolor=(255, 255, 255), unsetcolor=(0, 0, 0, 0))
-    surf.blit(white_bg, (0, 0))
-    surf.set_colorkey((255, 255, 255))
+    # Create an alpha mask surface: Start fully opaque white
+    alpha_mask = pygame.Surface((w, h), pygame.SRCALPHA)
+    alpha_mask.fill((255, 255, 255, 255))
+    
+    # Render background mask as pure transparent white
+    bg_surf = bg_mask.to_surface(setcolor=(255, 255, 255, 0), unsetcolor=(0, 0, 0, 0))
+    # Punch the background into the alpha mask
+    alpha_mask.blit(bg_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    
+    # Multiply original by alpha mask to make background transparent while keeping internal white
+    surf.blit(alpha_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
     return surf
 
 def run(screen, clock, fonts, save_data=None):
