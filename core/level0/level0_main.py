@@ -290,9 +290,15 @@ def run(screen, clock, fonts, save_data=None):
                     if show_chat_panel:
                         chat_panel.active = True
                         show_info_panel = False
+                elif event.key == pygame.K_c:
+                    hover_mode = "COAL"
+                    notification_text = "Coal Energy Mode"
+                    notification_color = (150, 150, 150)
+                    notification_timer = pygame.time.get_ticks() + 2000
+                    selected_slice = None
                 elif event.key == pygame.K_x:
                     hover_mode = "XLINE"
-                elif event.key == pygame.K_r:
+                elif event.key == pygame.K_o: # Remapped Road to [O]
                     if hover_mode == "ROAD" and road_id_list:
                         selected_road_idx = (selected_road_idx + 1) % len(road_id_list)
                     else:
@@ -733,6 +739,7 @@ def run(screen, clock, fonts, save_data=None):
                 "[R] - Residential Zone",
                 "[I] - Industrial Zone",
                 "[B] - Business Zone",
+                "[O] - Road (Cycle variants)",
                 "[S] - Solar Mode",
                 "[W] - Wind Mode",
                 "[C] - Coal Plant",
