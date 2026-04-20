@@ -79,9 +79,11 @@ def run(screen, clock, fonts, save_data=None):
 
     # World data
     print("Generating Level 0 world...")
+    balance = 1000000
     if save_data:
         world_data = save_data["world_data"]
         time_manager.current_date = save_data["current_date"]
+        balance = save_data.get("balance", 1000000)
     else:
         world_data = world.generate_world()
     
@@ -233,7 +235,7 @@ def run(screen, clock, fonts, save_data=None):
                         cached_map_valid = False
                 
                 elif event.key == pygame.K_F1:
-                    save_manager.save_session(world_data, time_manager.current_date)
+                    save_manager.save_session(world_data, time_manager.current_date, balance)
                     notification_text = "GAME SAVED"
                     notification_timer = pygame.time.get_ticks() + 2000
 
@@ -255,19 +257,27 @@ def run(screen, clock, fonts, save_data=None):
                     elif hover_mode in ("ROAD", "SOLAR", "WIND"):
                         # Map mode to block ID
                         bid = 3
+                        cost = 0
                         if hover_mode == "ROAD" and road_id_list:
                             bid = road_id_list[selected_road_idx]
-                        elif hover_mode == "SOLAR": bid = 4
+                        elif hover_mode == "SOLAR": 
+                            bid = 4
+                            cost = 10000
                         elif hover_mode == "WIND": bid = 5
                         
-                        world_data[world.MAX_Z - 1][gy][gx] = bid
-                        # Update render_list in place to avoid full recalculation
-                        for i, (z, y, x, b_id) in enumerate(render_list):
-                            if z == world.MAX_Z - 1 and y == gy and x == gx:
-                                render_list[i] = (z, y, x, bid)
-                                break
-                        # Request map update
-                        cached_map_valid = False
+                        if balance >= cost:
+                            balance -= cost
+                            world_data[world.MAX_Z - 1][gy][gx] = bid
+                            # Update render_list in place to avoid full recalculation
+                            for i, (z, y, x, b_id) in enumerate(render_list):
+                                if z == world.MAX_Z - 1 and y == gy and x == gx:
+                                    render_list[i] = (z, y, x, bid)
+                                    break
+                            # Request map update
+                            cached_map_valid = False
+                        else:
+                            notification_text = "INSUFFICIENT FUNDS!"
+                            notification_timer = pygame.time.get_ticks() + 2000
 
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0] < ISO_W and event.button in (4, 5):
@@ -632,6 +642,15 @@ def run(screen, clock, fonts, save_data=None):
             pygame.draw.rect(screen, (30, 60, 30, 200), bg_rect, border_radius=10)
             pygame.draw.rect(screen, (0, 255, 0), bg_rect, 2, border_radius=10)
             screen.blit(notif_surf, notif_rect)
+
+        # Balance Overlay (Bottom Right of Isometric View)
+        balance_str = f"BALANCE: ${balance:,}"
+        bal_surf = large_font.render(balance_str, True, (0, 255, 100))
+        bal_rect = bal_surf.get_rect(bottomright=(ISO_W - 20, SCREEN_H - 20))
+        # Semi-transparent backing
+        bg_bal = bal_rect.inflate(20, 10)
+        pygame.draw.rect(screen, (20, 20, 20, 180), bg_bal, border_radius=5)
+        screen.blit(bal_surf, bal_rect)
 
         pygame.display.flip()
         clock.tick(60)

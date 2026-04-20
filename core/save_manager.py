@@ -4,15 +4,17 @@ import datetime
 
 SAVE_FILE = "save_game.json"
 
-def save_session(world_data, current_date):
+def save_session(world_data, current_date, balance=1000000):
     """
     Saves the game state to a JSON file.
     :param world_data: 3D world array list.
     :param current_date: datetime object.
+    :param balance: Current budget balance.
     """
     data = {
         "world_data": world_data,
-        "current_date": current_date.strftime("%Y-%m-%d %H:%M:%S")
+        "current_date": current_date.strftime("%Y-%m-%d %H:%M:%S"),
+        "balance": balance
     }
     with open(SAVE_FILE, "w") as f:
         json.dump(data, f)
