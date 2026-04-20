@@ -49,12 +49,19 @@ class InfoPanel:
                     max_val = max(max_val, entry)
             max_val = max(max_val, 1000) # Minimum scale for visibility
             
-            # Draw Demand Line (Dashed)
-            demand_y = plot_rect.bottom - 5 - (800 / max_val * (plot_rect.h - 20)) # Fixed demand at 800 for now
-            if plot_rect.y < demand_y < plot_rect.bottom:
-                for dx in range(plot_rect.x, plot_rect.right, 10):
-                    pygame.draw.line(surface, (255, 50, 50), (dx, int(demand_y)), (dx + 5, int(demand_y)), 1)
-                surface.blit(self.font.render("MIN DEMAND", True, (255, 50, 50)), (plot_rect.x + 5, int(demand_y) - 15))
+            # Draw Demand Lines (Dashed)
+            demands = [
+                (800, (255, 50, 50), "RESIDENTIAL MIN NEED"),
+                (1500, (255, 150, 0), "BUSINESS REQUIREMENTS"),
+                (2500, (200, 100, 255), "INDUSTRIAL MIN REQUIREMENT")
+            ]
+            
+            for threshold, color, label in demands:
+                demand_y = plot_rect.bottom - 5 - (threshold / max_val * (plot_rect.h - 20))
+                if plot_rect.y < demand_y < plot_rect.bottom:
+                    for dx in range(plot_rect.x, plot_rect.right, 10):
+                        pygame.draw.line(surface, color, (dx, int(demand_y)), (dx + 5, int(demand_y)), 1)
+                    surface.blit(self.font.render(label, True, color), (plot_rect.x + 5, int(demand_y) - 15))
 
             # Stacked Area logic
             num_points = len(self.energy_history)

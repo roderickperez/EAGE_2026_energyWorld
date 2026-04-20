@@ -141,6 +141,16 @@ def run(screen, clock, fonts, save_data=None):
                 scale_w = int(tile_w)
                 scale_h = int(scale_w * (sprite.get_height() / sprite.get_width()))
                 SCALED_SPRITES[b_id] = pygame.transform.scale(sprite, (scale_w + 1, scale_h + 1))
+        
+        # Load Buildings
+        try:
+            building_house = pygame.image.load("assests/buildings/buildingTiles_000.png").convert_alpha()
+            building_office = pygame.image.load("assests/buildings/buildingTiles_117.png").convert_alpha()
+            
+            # Cache buildings
+            SCALED_SPRITES[10] = pygame.transform.scale(building_house, (int(tile_w), int(building_house.get_height() * (tile_w/building_house.get_width()))))
+            SCALED_SPRITES[11] = pygame.transform.scale(building_office, (int(tile_w), int(building_office.get_height() * (tile_w/building_office.get_width()))))
+        except: pass
 
     # World data
     print("Generating Level 0 world...")
@@ -199,7 +209,7 @@ def run(screen, clock, fonts, save_data=None):
         return gx, gy
 
     def block_is_highlighted(x: int, y: int, z: int, hx: int, hy: int) -> bool:
-        if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND"):
+        if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "RESIDENTIAL", "INDUSTRIAL", "BUSINESS"):
             return z == world.MAX_Z - 1 and x == hx and y == hy
         if hover_mode == "INLINE":
             return y == hy
@@ -258,14 +268,23 @@ def run(screen, clock, fonts, save_data=None):
 
                 if event.key == pygame.K_ESCAPE:
                     return "MENU"
-                elif event.key == pygame.K_i:
-                    hover_mode = "CELL"
-                    selected_slice = None
-                elif event.key == pygame.K_c:
-                    hover_mode = "COAL"
-                    selected_slice = None
-                elif event.key == pygame.K_r:
+                elif event.key == pygame.K_n:
                     show_info_panel = not show_info_panel
+                elif event.key == pygame.K_r: 
+                    hover_mode = "RESIDENTIAL"
+                    notification_text = "Residential Zoning Mode"
+                    notification_color = (0, 150, 255)
+                    notification_timer = pygame.time.get_ticks() + 2000
+                elif event.key == pygame.K_i: 
+                    hover_mode = "INDUSTRIAL"
+                    notification_text = "Industrial Zoning Mode"
+                    notification_color = (255, 150, 0)
+                    notification_timer = pygame.time.get_ticks() + 2000
+                elif event.key == pygame.K_b: 
+                    hover_mode = "BUSINESS"
+                    notification_text = "Business Zoning Mode"
+                    notification_color = (150, 200, 255)
+                    notification_timer = pygame.time.get_ticks() + 2000
                 elif event.key == pygame.K_a:
                     show_chat_panel = not show_chat_panel
                     if show_chat_panel:
@@ -328,7 +347,7 @@ def run(screen, clock, fonts, save_data=None):
                         selected_slice = {"type": "INLINE", "index": gy}
                     elif hover_mode == "XLINE":
                         selected_slice = {"type": "XLINE", "index": gx}
-                    elif hover_mode in ("ROAD", "SOLAR", "WIND", "COAL"):
+                    elif hover_mode in ("ROAD", "SOLAR", "WIND", "COAL", "RESIDENTIAL", "INDUSTRIAL", "BUSINESS"):
                         # Placement Logic
                         target_bid = 3
                         cost_buy = 0
@@ -344,10 +363,13 @@ def run(screen, clock, fonts, save_data=None):
                         elif hover_mode == "COAL":
                             target_bid = 6
                             cost_buy = 250000
+                        elif hover_mode == "RESIDENTIAL": target_bid = 7; cost_buy = 100
+                        elif hover_mode == "INDUSTRIAL": target_bid = 8; cost_buy = 200
+                        elif hover_mode == "BUSINESS": target_bid = 9; cost_buy = 150
                         
                         current_bid = world_data[world.MAX_Z - 1][gy][gx]
                         
-                        if current_bid > 2: # Cell is occupied
+                        if current_bid > 2 and current_bid < 7: # Cell is occupied by actual structure
                             names = {3: "Road", 4: "Solar Panel", 5: "Wind Turbine", 6: "Coal Plant"}
                             # Also check road variants (100+)
                             occ_name = names.get(current_bid, "Road" if current_bid >= 100 else "Element")
@@ -377,6 +399,9 @@ def run(screen, clock, fonts, save_data=None):
                             elif current_bid == 4: cost_remove = 2500 # Solar
                             elif current_bid == 5: cost_remove = 20000 # Wind
                             elif current_bid == 6: cost_remove = 500000 # Coal (Revised to 500,000)
+                            elif current_bid in [7, 8, 9]: cost_remove = 50 # Zone removal is cheap
+                            elif current_bid == 10: cost_remove = 5000 # House
+                            elif current_bid == 11: cost_remove = 15000 # Building
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -452,6 +477,25 @@ def run(screen, clock, fonts, save_data=None):
         info_panel.energy_history.append(production_tuple)
         if len(info_panel.energy_history) > info_panel.max_hist:
             info_panel.energy_history.pop(0)
+
+        # Automatic Building Spawning Logic (Zoning -> Construction)
+        if pygame.time.get_ticks() % 500 < 50: # Roughly every ~2 seconds
+            tot_e = total_solar_prod + total_wind_prod + total_coal_prod
+            for y in range(world.GRID_SIZE):
+                for x in range(world.GRID_SIZE):
+                    bid = world_data[world.MAX_Z-1][y][x]
+                    if bid in [7, 8, 9]:
+                        has_road = False
+                        for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
+                            ny, nx = y+dy, x+dx
+                            if 0 <= ny < world.GRID_SIZE and 0 <= nx < world.GRID_SIZE:
+                                n_bid = world_data[world.MAX_Z-1][ny][nx]
+                                if n_bid == 3 or n_bid >= 100: has_road = True; break
+                        
+                        if has_road:
+                            if bid == 7 and tot_e >= 800: world_data[world.MAX_Z-1][y][x] = 10
+                            elif bid == 9 and tot_e >= 1500: world_data[world.MAX_Z-1][y][x] = 11
+                            elif bid == 8 and tot_e >= 2500: world_data[world.MAX_Z-1][y][x] = 11
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
         is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
@@ -534,6 +578,9 @@ def run(screen, clock, fonts, save_data=None):
                 elif b_id == 4: poly_col = (255, 255, 0) # Solar Yellow
                 elif b_id == 5: poly_col = (0, 255, 255) # Wind Cyan
                 elif b_id == 6: poly_col = (0, 0, 0) # Coal Plant Black
+                elif b_id == 7: poly_col = (0, 100, 255) # Res
+                elif b_id == 8: poly_col = (255, 120, 0) # Ind
+                elif b_id == 9: poly_col = (100, 200, 255) # Bus
                 
                 # Draw standard cube
                 pygame.draw.polygon(iso_surf, poly_col, [t, r, b, l])
@@ -549,7 +596,7 @@ def run(screen, clock, fonts, save_data=None):
 
         # Pass 2: Highlights (Not tinted, making them luminous at night)
         if is_hovering_map:
-            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "COAL", "DELETE"):
+            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "COAL", "DELETE", "RESIDENTIAL", "INDUSTRIAL", "BUSINESS"):
                 # Optimize: Direct drawing for single cell modes
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
                 cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
@@ -577,6 +624,15 @@ def run(screen, clock, fonts, save_data=None):
                 elif hover_mode == "COAL":
                     pygame.draw.polygon(iso_surf, (20, 20, 20), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (150, 150, 150), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "RESIDENTIAL":
+                    pygame.draw.polygon(iso_surf, (0, 100, 255), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "INDUSTRIAL":
+                    pygame.draw.polygon(iso_surf, (255, 120, 0), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "BUSINESS":
+                    pygame.draw.polygon(iso_surf, (100, 200, 255), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (255, 255, 255), [t_f, r_f, b_f, l_f], 2)
                 elif hover_mode == "DELETE":
                     pygame.draw.polygon(iso_surf, (255, 50, 50), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (255, 200, 200), [t_f, r_f, b_f, l_f], 2)
@@ -629,7 +685,7 @@ def run(screen, clock, fonts, save_data=None):
         m_txt = f"Mode: {hover_mode}"
         if hover_mode == "ROAD" and road_id_list:
             m_txt += f" ({ROAD_VARIANTS[road_id_list[selected_road_idx]]})"
-        iso_surf.blit(font.render(f"{m_txt} (Press R, S, W, I, X, C)", True, (255, 200, 100)), (10, 28))
+        iso_surf.blit(font.render(f"{m_txt} (Press R, S, W, I, X, C, B, N)", True, (255, 200, 100)), (10, 28))
         
         # Level 0 label
         lvl0_surf = huge_font.render("Level 0", True, (255, 255, 255))
@@ -664,13 +720,13 @@ def run(screen, clock, fonts, save_data=None):
                 "Coal Production": f"{total_coal_prod:.1f} kW"
             }
             controls = [
-                "[I] - Info / Cell Selection",
-                "[T] - Inline Selection",
-                "[X] - Xline Selection",
-                "[R] - Road (Cycle variants)",
+                "[N] - Info Toggle",
+                "[R] - Residential Zone",
+                "[I] - Industrial Zone",
+                "[B] - Business Zone",
                 "[S] - Solar Mode",
                 "[W] - Wind Mode",
-                "[C] - Industrial Coal Plant",
+                "[C] - Coal Plant",
                 "[A] - Toggle AI Chat",
                 "L Click - Select/Place",
                 "MMB - Pan Camera",
@@ -771,12 +827,21 @@ def run(screen, clock, fonts, save_data=None):
                     for x in range(world.GRID_SIZE):
                         bid_top = world_data[world.MAX_Z - 1][y][x]
                         if bid_top == 1: continue # Grass is base
-                        color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
                         
                         # 90-degree rotated map alignment: iso_y -> map_x, iso_x -> map_y (inverted)
-                        m_x_pos = y * td_tile
-                        m_y_pos = (world.GRID_SIZE - 1 - x) * td_tile
-                        pygame.draw.rect(map_content_surf, color, (m_x_pos, m_y_pos, td_tile, td_tile))
+                        mc_x = y * td_tile + td_tile // 2
+                        mc_y = (world.GRID_SIZE - 1 - x) * td_tile + td_tile // 2
+                        
+                        color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
+                        
+                        # Minimap zoning colors
+                        if bid_top == 7: color = (0, 0, 255) # Blue
+                        elif bid_top == 8: color = (255, 120, 0) # Orange
+                        elif bid_top == 9: color = (150, 220, 255) # Light Blue
+                        elif bid_top == 10: color = (200, 200, 200) # House
+                        elif bid_top == 11: color = (150, 150, 150) # Building
+                        
+                        pygame.draw.rect(map_content_surf, color, (y * td_tile, (world.GRID_SIZE - 1 - x) * td_tile, td_tile, td_tile))
                 cached_map_valid = True
                 bot_surf.blit(map_content_surf, (off_x, off_y))
             else:
