@@ -83,6 +83,17 @@ def run(screen, clock, fonts, save_data=None):
                 SPRITES[5].append(clean_white_background(scaled_frame, threshold=30))
         except Exception as e:
             print(f"Warning: windTurbine animation load failed: {e}")
+            
+        try:
+            # Load Coal Plant (ID 6)
+            raw_coal = pygame.image.load("assests/coalPlant_V2.jpg").convert()
+            wc, hc = raw_coal.get_size()
+            target_hc = 200 # Plants are substantial but not as tall as turbines
+            sc = target_hc / hc
+            scaled_coal = pygame.transform.smoothscale(raw_coal, (int(wc * sc), target_hc))
+            SPRITES[6] = clean_white_background(scaled_coal, threshold=40)
+        except Exception as e:
+            print(f"Warning: Coal plant asset load failed: {e}")
 
         # New: Dynamically load road variants from assests/road/
         ROAD_VARIANTS = {} # id -> filename
@@ -244,10 +255,13 @@ def run(screen, clock, fonts, save_data=None):
 
                 if event.key == pygame.K_ESCAPE:
                     return "MENU"
-                elif event.key == pygame.K_c:
+                elif event.key == pygame.K_i:
                     hover_mode = "CELL"
                     selected_slice = None
-                elif event.key == pygame.K_i:
+                elif event.key == pygame.K_c:
+                    hover_mode = "COAL"
+                    selected_slice = None
+                elif event.key == pygame.K_r:
                     show_info_panel = not show_info_panel
                 elif event.key == pygame.K_a:
                     show_chat_panel = not show_chat_panel
@@ -311,7 +325,7 @@ def run(screen, clock, fonts, save_data=None):
                         selected_slice = {"type": "INLINE", "index": gy}
                     elif hover_mode == "XLINE":
                         selected_slice = {"type": "XLINE", "index": gx}
-                    elif hover_mode in ("ROAD", "SOLAR", "WIND"):
+                    elif hover_mode in ("ROAD", "SOLAR", "WIND", "COAL"):
                         # Placement Logic
                         target_bid = 3
                         cost_buy = 0
@@ -324,6 +338,9 @@ def run(screen, clock, fonts, save_data=None):
                         elif hover_mode == "WIND": 
                             target_bid = 5
                             cost_buy = 10000
+                        elif hover_mode == "COAL":
+                            target_bid = 6
+                            cost_buy = 50000
                         
                         current_bid = world_data[world.MAX_Z - 1][gy][gx]
                         
@@ -353,6 +370,7 @@ def run(screen, clock, fonts, save_data=None):
                             if current_bid >= 100 or current_bid == 3: cost_remove = 250 # Road
                             elif current_bid == 4: cost_remove = 2500 # Solar
                             elif current_bid == 5: cost_remove = 20000 # Wind
+                            elif current_bid == 6: cost_remove = 15000 # Coal
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -468,6 +486,7 @@ def run(screen, clock, fonts, save_data=None):
                 offset_y = 0
                 if b_id == 4: offset_y = 60 # Float significantly higher above surface
                 if b_id == 5: offset_y = 320 # Massive elevation for monumental turbines
+                if b_id == 6: offset_y = 40 # Solid grounding for the plant
                 
                 # Dynamic frame selection for animated sprites
                 draw_sprite = sprite
@@ -509,7 +528,7 @@ def run(screen, clock, fonts, save_data=None):
 
         # Pass 2: Highlights (Not tinted, making them luminous at night)
         if is_hovering_map:
-            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "DELETE"):
+            if hover_mode in ("CELL", "ROAD", "SOLAR", "WIND", "COAL", "DELETE"):
                 # Optimize: Direct drawing for single cell modes
                 ix, iy = grid_to_iso_3d(active_hx, active_hy, world.MAX_Z - 1, tile_w, tile_h)
                 cx, cy = ix + ISO_W / 2 + cam_x, iy + SCREEN_H / 2 + cam_y
@@ -534,6 +553,9 @@ def run(screen, clock, fonts, save_data=None):
                 elif hover_mode == "WIND":
                     pygame.draw.polygon(iso_surf, (0, 255, 255), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (200, 255, 255), [t_f, r_f, b_f, l_f], 2)
+                elif hover_mode == "COAL":
+                    pygame.draw.polygon(iso_surf, (20, 20, 20), [t_f, r_f, b_f, l_f])
+                    pygame.draw.polygon(iso_surf, (150, 150, 150), [t_f, r_f, b_f, l_f], 2)
                 elif hover_mode == "DELETE":
                     pygame.draw.polygon(iso_surf, (255, 50, 50), [t_f, r_f, b_f, l_f])
                     pygame.draw.polygon(iso_surf, (255, 200, 200), [t_f, r_f, b_f, l_f], 2)
