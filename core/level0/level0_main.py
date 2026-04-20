@@ -227,6 +227,9 @@ def run(screen, clock, fonts, save_data=None):
                                 render_list[i] = (z, y, x, bid)
                                 break
                         cached_map_valid = False
+                
+                elif event.key == pygame.K_F1:
+                    save_manager.save_session(world_data, time_manager.current_date)
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2 and event.pos[0] < ISO_W:
                 dragging = True
@@ -260,8 +263,6 @@ def run(screen, clock, fonts, save_data=None):
                         # Request map update
                         cached_map_valid = False
 
-                if event.key == pygame.K_F1:
-                    save_manager.save_session(world_data, time_manager.current_date)
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0] < ISO_W and event.button in (4, 5):
                 prev_zoom = zoom
