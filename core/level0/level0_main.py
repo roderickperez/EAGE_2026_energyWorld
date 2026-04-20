@@ -491,9 +491,9 @@ def run(screen, clock, fonts):
                         if bid_top == 1: continue # Grass is base
                         color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
                         
-                        # Rotated map alignment: iso_y -> map_x (inverted), iso_x -> map_y
-                        m_x_pos = (world.GRID_SIZE - 1 - y) * td_tile
-                        m_y_pos = x * td_tile
+                        # 90-degree rotated map alignment: iso_y -> map_x, iso_x -> map_y (inverted)
+                        m_x_pos = y * td_tile
+                        m_y_pos = (world.GRID_SIZE - 1 - x) * td_tile
                         pygame.draw.rect(map_content_surf, color, (m_x_pos, m_y_pos, td_tile, td_tile))
                 cached_map_valid = True
             
@@ -512,23 +512,23 @@ def run(screen, clock, fonts):
                         slice_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
                         h_col = (255, 50, 50, 150)
                         if hover_mode == "INLINE":
-                            # Inline is constant Y -> Vertical on map (iso_y -> map_x)
-                            m_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
-                            pygame.draw.rect(slice_surf, h_col, (m_x, off_y, td_tile, world.GRID_SIZE * td_tile))
+                            # Inline is constant Y -> Horizontal on rotated map
+                            m_y_val = (world.GRID_SIZE - 1 - gx_h) * td_tile + off_y # Since iso_x maps to map_y
+                            pygame.draw.rect(slice_surf, h_col, (off_x, m_y_val, world.GRID_SIZE * td_tile, td_tile))
                         else:
-                            # Xline is constant X -> Horizontal on map (iso_x -> map_y)
-                            m_y = gx_h * td_tile + off_y
-                            pygame.draw.rect(slice_surf, h_col, (off_x, m_y, world.GRID_SIZE * td_tile, td_tile))
+                            # Xline is constant X -> Vertical on rotated map
+                            m_x_val = gy_h * td_tile + off_x # Since iso_y maps to map_x
+                            pygame.draw.rect(slice_surf, h_col, (m_x_val, off_y, td_tile, world.GRID_SIZE * td_tile))
                         bot_surf.blit(slice_surf, (0, 0))
                         
-                        # Draw active cell darker
-                        h_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
-                        h_y = gx_h * td_tile + off_y
+                        # Draw active cell darker (90 deg rotated)
+                        h_x = gy_h * td_tile + off_x
+                        h_y = (world.GRID_SIZE - 1 - gx_h) * td_tile + off_y
                         pygame.draw.rect(bot_surf, (150, 0, 0), (h_x, h_y, td_tile, td_tile))
                     else:
-                        # Single cell highlight
-                        h_x = (world.GRID_SIZE - 1 - gy_h) * td_tile + off_x
-                        h_y = gx_h * td_tile + off_y
+                        # Single cell highlight (90 deg rotated)
+                        h_x = gy_h * td_tile + off_x
+                        h_y = (world.GRID_SIZE - 1 - gx_h) * td_tile + off_y
                         pygame.draw.rect(bot_surf, highlight_color, (h_x, h_y, td_tile, td_tile))
 
         else:
