@@ -146,10 +146,12 @@ def run(screen, clock, fonts, save_data=None):
         try:
             building_house = pygame.image.load("assests/buildings/buildingTiles_000.png").convert_alpha()
             building_office = pygame.image.load("assests/buildings/buildingTiles_117.png").convert_alpha()
+            building_factory = pygame.image.load("assests/buildings/buildingTiles_085.png").convert_alpha()
             
             # Cache buildings
             SCALED_SPRITES[10] = pygame.transform.scale(building_house, (int(tile_w), int(building_house.get_height() * (tile_w/building_house.get_width()))))
             SCALED_SPRITES[11] = pygame.transform.scale(building_office, (int(tile_w), int(building_office.get_height() * (tile_w/building_office.get_width()))))
+            SCALED_SPRITES[12] = pygame.transform.scale(building_factory, (int(tile_w), int(building_factory.get_height() * (tile_w/building_factory.get_width()))))
         except: pass
 
     # World data
@@ -408,6 +410,7 @@ def run(screen, clock, fonts, save_data=None):
                             elif current_bid in [7, 8, 9]: cost_remove = 50 # Zone removal is cheap
                             elif current_bid == 10: cost_remove = 5000 # House
                             elif current_bid == 11: cost_remove = 15000 # Building
+                            elif current_bid == 12: cost_remove = 15000 # Factory
                             
                             if balance >= cost_remove:
                                 balance -= cost_remove
@@ -516,7 +519,7 @@ def run(screen, clock, fonts, save_data=None):
                         if has_road:
                             if bid == 7 and tot_e >= res_need: world_data[world.MAX_Z-1][y][x] = 10
                             elif bid == 9 and tot_e >= bus_need: world_data[world.MAX_Z-1][y][x] = 11
-                            elif bid == 8 and tot_e >= ind_need: world_data[world.MAX_Z-1][y][x] = 11
+                            elif bid == 8 and tot_e >= ind_need: world_data[world.MAX_Z-1][y][x] = 12
 
         gx_h, gy_h = screen_to_iso_grid(mx, my, tile_w, tile_h, cam_x, cam_y)
         is_hovering_map = (0 <= gx_h < world.GRID_SIZE and 0 <= gy_h < world.GRID_SIZE and mx < ISO_W)
@@ -604,6 +607,9 @@ def run(screen, clock, fonts, save_data=None):
                 elif b_id == 7: poly_col = (0, 100, 255) # Res
                 elif b_id == 8: poly_col = (255, 120, 0) # Ind
                 elif b_id == 9: poly_col = (100, 200, 255) # Bus
+                elif b_id == 10: poly_col = (0, 100, 255) # House matches Res Blue
+                elif b_id == 11: poly_col = (100, 200, 255) # Office matches Bus L-Blue
+                elif b_id == 12: poly_col = (255, 120, 0) # Factory matches Ind Orange
                 
                 # Draw standard cube
                 pygame.draw.polygon(iso_surf, poly_col, [t, r, b, l])
@@ -862,12 +868,13 @@ def run(screen, clock, fonts, save_data=None):
                                 (0, 0, 0) if bid_top == 6 else \
                                 (100, 150, 100)
                         
-                        # Minimap zoning colors
-                        if bid_top == 7: color = (0, 0, 255) # Blue
+                        # Minimap zoning colors (Synced with Isometric)
+                        if bid_top == 7: color = (0, 100, 255) # Blue
                         elif bid_top == 8: color = (255, 120, 0) # Orange
-                        elif bid_top == 9: color = (150, 220, 255) # Light Blue
-                        elif bid_top == 10: color = (200, 200, 200) # House
-                        elif bid_top == 11: color = (150, 150, 150) # Building
+                        elif bid_top == 9: color = (100, 200, 255) # Light Blue
+                        elif bid_top == 10: color = (0, 100, 255) # House
+                        elif bid_top == 11: color = (100, 200, 255) # Building
+                        elif bid_top == 12: color = (255, 120, 0) # Factory
                         
                         pygame.draw.rect(map_content_surf, color, (y * td_tile, (world.GRID_SIZE - 1 - x) * td_tile, td_tile, td_tile))
                 cached_map_valid = True
