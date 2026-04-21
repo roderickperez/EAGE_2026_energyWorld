@@ -6,6 +6,9 @@ import level0.level0_world as world
 import time_system
 import ui_panels
 import save_manager
+import threading
+from flask import Flask, jsonify, request
+import queue
 
 # Layout constants (shared logic)
 BASE_TILE_W = 64
@@ -45,6 +48,76 @@ def run(screen, clock, fonts, save_data=None):
     ISO_W = int(SCREEN_W * 0.80)
     PANEL_W = SCREEN_W - ISO_W
     PANEL_H = SCREEN_H // 2
+
+    # --- MCP BACKGROUND API SETUP ---
+    mcp_api = Flask(__name__)
+    mcp_message_buffer = queue.Queue()
+    
+    # Shared state for API
+    shared_metrics = {
+        "energy_stability": 1.0,
+        "population": 0,
+        "balance": 1000000,
+        "demands": {"res": 800, "bus": 1500, "ind": 2500},
+        "production": {"solar": 0, "wind": 0, "coal": 0}
+    }
+    
+    # Persistent reference for grid data (will be set after world gen)
+    grid_ref = {"data": None}
+
+    @mcp_api.route('/api/metrics', methods=['GET'])
+    def get_metrics():
+        # Intelligence Scaling: Check total production vs base need (e.g. 5000+ kW total load)
+        prod = shared_metrics["production"]
+        total_p = prod["solar"] + prod["wind"] + prod["coal"]
+        
+        # Arbitrary threshold for "High Performance" AI
+        if total_p < 5000:
+            # Degrade data
+            degraded = shared_metrics.copy()
+            degraded["balance"] = "SENSOR_ERROR"
+            degraded["population"] = "DATA_CORRUPT"
+            return jsonify({
+                "status": "LOW_POWER_MODE",
+                "warning": "Insufficient grid energy for full diagnostics.",
+                "metrics": degraded
+            })
+            
+        return jsonify(shared_metrics)
+
+    @mcp_api.route('/api/grid', methods=['GET'])
+    def get_grid():
+        if grid_ref["data"] is None: return jsonify({"error": "Grid not initialized"}), 503
+        
+        prod = shared_metrics["production"]
+        total_p = prod["solar"] + prod["wind"] + prod["coal"]
+        if total_p < 5000:
+            # Scramble grid with noise
+            import random
+            layer = grid_ref["data"][9]
+            scrambled = [[(val if random.random() > 0.4 else -1) for val in row] for row in layer]
+            return jsonify({"status": "SENSOR_INTERFERENCE", "layer_9": scrambled})
+            
+        return jsonify(grid_ref["data"])
+
+    @mcp_api.route('/api/advise', methods=['POST'])
+    def receive_advice():
+        data = request.json
+        if data and "message" in data:
+            mcp_message_buffer.put(data["message"])
+            return jsonify({"status": "received"}), 200
+        return jsonify({"error": "Invalid message"}), 400
+
+    def start_api():
+        try:
+            # Running on 127.0.0.1:8080 for security
+            mcp_api.run(host='127.0.0.1', port=8080, debug=False, use_reloader=False)
+        except Exception as e:
+            print(f"MCP API Error: {e}")
+
+    threading.Thread(target=start_api, daemon=True).start()
+    print("MCP Backend API running at http://127.0.0.1:8080")
+    # -------------------------------
 
     time_manager = time_system.TimeManager(time_scale=30000) # 30,000x scale
 
@@ -163,6 +236,8 @@ def run(screen, clock, fonts, save_data=None):
         balance = save_data.get("balance", 1000000)
     else:
         world_data = world.generate_world()
+    
+    grid_ref["data"] = world_data # Export grid to MCP API
     
     render_list = world.calculate_visible_blocks(world_data)
     
@@ -496,6 +571,18 @@ def run(screen, clock, fonts, save_data=None):
         total_wind_prod = sum(t[2] for t in installed_turbines)
         total_solar_prod = sum(p[2] for p in installed_panels)
         production_tuple = (total_solar_prod, total_wind_prod, total_coal_prod)
+        
+        # --- MCP SYNC ---
+        shared_metrics["balance"] = int(balance)
+        shared_metrics["population"] = (num_houses * 4) + (num_offices * 10)
+        shared_metrics["production"] = {"solar": total_solar_prod, "wind": total_wind_prod, "coal": total_coal_prod}
+        shared_metrics["demands"] = {"res": res_need, "bus": bus_need, "ind": ind_need}
+        
+        # Process AI Advisor Messages
+        while not mcp_message_buffer.empty():
+            msg = mcp_message_buffer.get()
+            chat_panel.add_message("AI Advisor", msg)
+        # ----------------
         
         info_panel.update_demands(res_need, bus_need, ind_need)
         info_panel.energy_history.append(production_tuple)
