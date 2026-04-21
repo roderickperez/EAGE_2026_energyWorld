@@ -856,7 +856,11 @@ def run(screen, clock, fonts, save_data=None):
                         mc_x = y * td_tile + td_tile // 2
                         mc_y = (world.GRID_SIZE - 1 - x) * td_tile + td_tile // 2
                         
-                        color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else (255, 255, 0) if bid_top == 4 else (0, 255, 255) if bid_top == 5 else (100, 150, 100)
+                        color = (120, 120, 120) if (bid_top == 3 or bid_top >= 100) else \
+                                (255, 255, 0) if bid_top == 4 else \
+                                (0, 255, 255) if bid_top == 5 else \
+                                (0, 0, 0) if bid_top == 6 else \
+                                (100, 150, 100)
                         
                         # Minimap zoning colors
                         if bid_top == 7: color = (0, 0, 255) # Blue
